@@ -226,6 +226,70 @@ export async function updateProfile(formData: FormData) {
   return { success: true };
 }
 
+export async function leaveOrganization() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated" } as const;
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, org_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return { error: "Profile not found" } as const;
+  }
+
+  if (!profile.org_id) {
+    return { error: "You are not on a team." } as const;
+  }
+
+  if (profile.role === "captain") {
+    const { count } = await supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", profile.org_id)
+      .eq("role", "captain");
+
+    if ((count ?? 0) <= 1) {
+      return {
+        error: "Assign another captain before leaving your team.",
+      } as const;
+    }
+  }
+
+  await supabase
+    .from("scout_assignments")
+    .delete()
+    .eq("org_id", profile.org_id)
+    .eq("assigned_to", user.id);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      org_id: null,
+      role: "scout",
+      onboarding_complete: false,
+      team_roles: [],
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) {
+    return { error: error.message } as const;
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/settings");
+  return { success: true } as const;
+}
+
 export async function joinOrganization(formData: FormData) {
   const supabase = await createClient();
 

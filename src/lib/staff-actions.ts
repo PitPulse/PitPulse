@@ -198,3 +198,65 @@ export async function deleteTestimonial(formData: FormData) {
   revalidatePath("/dashboard/admin");
   return { success: true } as const;
 }
+
+export async function respondContactMessage(formData: FormData) {
+  const ctx = await requireStaff();
+  if ("error" in ctx) return ctx;
+
+  const id = (formData.get("id") as string | null)?.trim();
+  if (!id) {
+    return { error: "Missing contact message id" } as const;
+  }
+
+  const response = (formData.get("response") as string | null)?.trim() ?? "";
+  const status = (formData.get("status") as string | null)?.trim() || "new";
+
+  const payload: {
+    response: string | null;
+    status: string;
+    responded_at?: string | null;
+    responded_by?: string | null;
+  } = {
+    response: response.length > 0 ? response : null,
+    status,
+  };
+
+  if (response.length > 0) {
+    payload.responded_at = new Date().toISOString();
+    payload.responded_by = ctx.user.id;
+  }
+
+  const { error } = await ctx.supabase
+    .from("contact_messages")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) {
+    return { error: error.message } as const;
+  }
+
+  revalidatePath("/dashboard/admin");
+  return { success: true } as const;
+}
+
+export async function deleteContactMessage(formData: FormData) {
+  const ctx = await requireStaff();
+  if ("error" in ctx) return ctx;
+
+  const id = (formData.get("id") as string | null)?.trim();
+  if (!id) {
+    return { error: "Missing contact message id" } as const;
+  }
+
+  const { error } = await ctx.supabase
+    .from("contact_messages")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    return { error: error.message } as const;
+  }
+
+  revalidatePath("/dashboard/admin");
+  return { success: true } as const;
+}

@@ -8,6 +8,8 @@ import {
   deleteAnnouncement,
   upsertTestimonial,
   deleteTestimonial,
+  respondContactMessage,
+  deleteContactMessage,
 } from "@/lib/staff-actions";
 
 interface OrgRow {
@@ -37,6 +39,17 @@ interface Announcement {
   created_at: string;
 }
 
+interface ContactMessage {
+  id: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: string;
+  response: string | null;
+  created_at: string;
+  responded_at: string | null;
+}
+
 interface AdminPanelProps {
   stats: {
     organizations: number;
@@ -48,12 +61,32 @@ interface AdminPanelProps {
   organizations: OrgRow[];
   testimonials: Testimonial[];
   announcements: Announcement[];
+  contactMessages: ContactMessage[];
 }
 
-export function AdminPanel({ stats, organizations, testimonials, announcements }: AdminPanelProps) {
+export function AdminPanel({
+  stats,
+  organizations,
+  testimonials,
+  announcements,
+  contactMessages,
+}: AdminPanelProps) {
   const [orgStatus, setOrgStatus] = useState<string | null>(null);
   const [announcementStatus, setAnnouncementStatus] = useState<string | null>(null);
   const [testimonialStatus, setTestimonialStatus] = useState<string | null>(null);
+  const [contactStatus, setContactStatus] = useState<string | null>(null);
+
+  const formatDateTime = (value: string | null) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.valueOf())) return value;
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
 
   async function handleUpdateOrg(formData: FormData) {
     setOrgStatus(null);
@@ -79,7 +112,8 @@ export function AdminPanel({ stats, organizations, testimonials, announcements }
     e.preventDefault();
     setAnnouncementStatus(null);
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const result = await upsertAnnouncement(formData);
 
     if (result?.error) {
@@ -88,7 +122,7 @@ export function AdminPanel({ stats, organizations, testimonials, announcements }
     }
 
     setAnnouncementStatus("Announcement saved.");
-    e.currentTarget.reset();
+    form.reset();
   }
 
   async function handleAnnouncementUpdate(e: React.FormEvent<HTMLFormElement>) {
@@ -124,7 +158,8 @@ export function AdminPanel({ stats, organizations, testimonials, announcements }
     e.preventDefault();
     setTestimonialStatus(null);
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const result = await upsertTestimonial(formData);
 
     if (result?.error) {
@@ -133,7 +168,7 @@ export function AdminPanel({ stats, organizations, testimonials, announcements }
     }
 
     setTestimonialStatus("Testimonial saved.");
-    e.currentTarget.reset();
+    form.reset();
   }
 
   async function handleTestimonialUpdate(e: React.FormEvent<HTMLFormElement>) {
@@ -163,6 +198,35 @@ export function AdminPanel({ stats, organizations, testimonials, announcements }
     }
 
     setTestimonialStatus("Testimonial deleted.");
+  }
+
+  async function handleContactUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setContactStatus(null);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await respondContactMessage(formData);
+
+    if (result?.error) {
+      setContactStatus(result.error);
+      return;
+    }
+
+    setContactStatus("Response saved.");
+  }
+
+  async function handleContactDelete(id: string) {
+    setContactStatus(null);
+    const formData = new FormData();
+    formData.set("id", id);
+
+    const result = await deleteContactMessage(formData);
+    if (result?.error) {
+      setContactStatus(result.error);
+      return;
+    }
+
+    setContactStatus("Message deleted.");
   }
 
   return (
@@ -302,6 +366,104 @@ export function AdminPanel({ stats, organizations, testimonials, announcements }
                   >
                     Delete
                   </button>
+                </div>
+              </form>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-gray-900/60 p-6">
+        <h2 className="text-lg font-semibold">Contact Inbox</h2>
+        <p className="mt-1 text-sm text-gray-300">
+          Review inbound messages and reply from the dashboard.
+        </p>
+
+        {contactStatus && (
+          <p className="mt-3 text-sm text-gray-200">{contactStatus}</p>
+        )}
+
+        <div className="mt-6 space-y-4">
+          {contactMessages.length === 0 ? (
+            <p className="text-sm text-gray-400">No contact messages yet.</p>
+          ) : (
+            contactMessages.map((message) => (
+              <form
+                key={message.id}
+                onSubmit={handleContactUpdate}
+                className="rounded-xl border border-white/10 bg-gray-950/60 p-4"
+              >
+                <input type="hidden" name="id" value={message.id} />
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{message.subject}</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {message.email} · {formatDateTime(message.created_at)}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-300">
+                    {message.status}
+                  </span>
+                </div>
+
+                <p className="mt-3 text-sm text-gray-200">{message.message}</p>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-gray-400">Response</label>
+                    <textarea
+                      name="response"
+                      rows={3}
+                      defaultValue={message.response ?? ""}
+                      className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      placeholder="Draft your reply..."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Response drafts are stored here. You can email manually after saving.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400">Status</label>
+                    <select
+                      name="status"
+                      defaultValue={message.status}
+                      className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                    >
+                      <option value="new">New</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="replied">Replied</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {message.responded_at
+                        ? `Replied ${formatDateTime(message.responded_at)}`
+                        : "No response yet"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+                  >
+                    Save response
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleContactDelete(message.id)}
+                    className="rounded-md border border-red-500/40 px-3 py-1.5 text-sm font-medium text-red-300 hover:bg-red-500/10"
+                  >
+                    Delete
+                  </button>
+                  <a
+                    href={`mailto:${message.email}?subject=${encodeURIComponent(
+                      `Re: ${message.subject}`
+                    )}&body=${encodeURIComponent(message.response ?? "")}`}
+                    className="text-sm text-gray-300 underline underline-offset-4 transition hover:text-white"
+                  >
+                    Open email client
+                  </a>
                 </div>
               </form>
             ))

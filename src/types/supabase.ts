@@ -41,6 +41,50 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          message: string
+          responded_at: string | null
+          responded_by: string | null
+          response: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_messages_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           created_at: string
@@ -282,10 +326,13 @@ export type Database = {
       }
       scouting_entries: {
         Row: {
+          auto_mobility: boolean | null
           auto_score: number
+          auto_start_position: string | null
           created_at: string
           defense_rating: number
           endgame_score: number
+          endgame_state: string | null
           id: string
           match_id: string
           notes: string | null
@@ -293,13 +340,17 @@ export type Database = {
           reliability_rating: number
           scouted_by: string
           team_number: number
+          teleop_defense: boolean | null
           teleop_score: number
         }
         Insert: {
+          auto_mobility?: boolean | null
           auto_score?: number
+          auto_start_position?: string | null
           created_at?: string
           defense_rating?: number
           endgame_score?: number
+          endgame_state?: string | null
           id?: string
           match_id: string
           notes?: string | null
@@ -307,13 +358,17 @@ export type Database = {
           reliability_rating?: number
           scouted_by: string
           team_number: number
+          teleop_defense?: boolean | null
           teleop_score?: number
         }
         Update: {
+          auto_mobility?: boolean | null
           auto_score?: number
+          auto_start_position?: string | null
           created_at?: string
           defense_rating?: number
           endgame_score?: number
+          endgame_state?: string | null
           id?: string
           match_id?: string
           notes?: string | null
@@ -321,6 +376,7 @@ export type Database = {
           reliability_rating?: number
           scouted_by?: string
           team_number?: number
+          teleop_defense?: boolean | null
           teleop_score?: number
         }
         Relationships: [
@@ -432,6 +488,51 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_messages: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          match_key: string | null
+          message_type: string
+          org_id: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          match_key?: string | null
+          message_type?: string
+          org_id: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          match_key?: string | null
+          message_type?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_messages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

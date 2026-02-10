@@ -15,6 +15,7 @@ export function PageTransition({
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
+        className="min-h-screen bg-gray-950"
         initial={
           prefersReducedMotion
             ? false
@@ -34,6 +35,15 @@ export function PageTransition({
         }
         transition={{ duration: 0.25, ease: "easeOut" }}
       >
+        {!prefersReducedMotion && (
+          <motion.div
+            className="pointer-events-none fixed inset-0 bg-gradient-to-br from-gray-950 via-gray-950/80 to-black"
+            initial={{ opacity: 0.2 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0.2 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          />
+        )}
         {children}
       </motion.div>
     </AnimatePresence>

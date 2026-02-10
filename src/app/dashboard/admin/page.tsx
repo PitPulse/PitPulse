@@ -46,6 +46,11 @@ export default async function AdminPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
+  const { data: contactMessages } = await supabase
+    .from("contact_messages")
+    .select("id, email, subject, message, status, response, created_at, responded_at")
+    .order("created_at", { ascending: false });
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Navbar />
@@ -71,6 +76,7 @@ export default async function AdminPage() {
           organizations={orgsRes.data ?? []}
           testimonials={testimonials ?? []}
           announcements={announcements ?? []}
+          contactMessages={contactMessages ?? []}
         />
       </main>
     </div>

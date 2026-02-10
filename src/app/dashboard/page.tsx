@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/navbar";
 import { SyncEventForm } from "./sync-event-form";
+import { LeaveTeamButton } from "@/components/leave-team-button";
 
 export const metadata: Metadata = {
   title: "Dashboard | ScoutAI",
@@ -66,6 +67,48 @@ export default async function DashboardPage() {
     .eq("org_id", profile.org_id);
 
   const eventsCount = events?.length ?? 0;
+
+  const { data: pulseMessages } = await supabase
+    .from("team_messages")
+    .select("id, content, message_type, created_at, profiles(display_name)")
+    .eq("org_id", profile.org_id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const pulsePreview =
+    pulseMessages && pulseMessages.length > 0
+      ? pulseMessages.map((message) => {
+          const profileName = Array.isArray(message.profiles)
+            ? message.profiles[0]?.display_name
+            : message.profiles?.display_name;
+          const snippet =
+            message.content.length > 120
+              ? `${message.content.slice(0, 120)}…`
+              : message.content;
+          return (
+            <div
+              key={message.id}
+              className="rounded-2xl border border-white/10 bg-gray-900/60 px-4 py-3"
+            >
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <span className="font-semibold text-gray-200">
+                  {profileName ?? "Teammate"}
+                </span>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 uppercase tracking-wide text-gray-300">
+                  {message.message_type}
+                </span>
+                <span>
+                  {new Date(message.created_at).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-gray-200">{snippet}</p>
+            </div>
+          );
+        })
+      : null;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -155,6 +198,9 @@ export default async function DashboardPage() {
             >
               Open settings
             </Link>
+            <div className="mt-4">
+              <LeaveTeamButton />
+            </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-gray-900/60 p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-white">
@@ -205,6 +251,32 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="mt-10 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Team Pulse</h3>
+              <p className="text-sm text-gray-400">
+                Recent team updates and strategy chatter.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/pulse"
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5"
+            >
+              Open channel
+            </Link>
+          </div>
+          <div className="grid gap-3">
+            {pulsePreview ? (
+              pulsePreview
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-gray-900/40 p-6 text-sm text-gray-400">
+                No pulse updates yet. Start the conversation in Team Pulse.
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-10 rounded-2xl border bg-gradient-to-br from-gray-900 via-gray-900 to-blue-950 p-6 text-white shadow-lg">

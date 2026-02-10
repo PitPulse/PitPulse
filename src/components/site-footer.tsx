@@ -95,6 +95,11 @@ export function SiteFooter({ className = "" }: { className?: string }) {
                   Dashboard
                 </Link>
               </li>
+              <li>
+                <Link href="/contact" className="text-gray-500 transition hover:text-gray-300">
+                  Contact
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
