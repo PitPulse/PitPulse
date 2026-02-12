@@ -40,27 +40,9 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000)
 
-## Environment Variables
-
-See `.env.example` for the full list. Required values:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `ANTHROPIC_API_KEY`
-- `TBA_API_KEY`
-
 ## Scripts
 
 - `npm run dev` - Run local dev server
 - `npm run build` - Create production build
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
-
-## Deploying to Vercel
-
-1. Import this repository in Vercel.
-2. Add all required environment variables from `.env.example`.
-3. Deploy.
-
-If you previously committed keys, rotate them before making the repository public.

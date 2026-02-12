@@ -285,10 +285,10 @@ export default async function Home() {
               Pricing
             </p>
             <h2 className="mt-3 text-3xl font-bold sm:text-4xl">
-              Free to scout. Upgrade for AI.
+              Community-first pricing for teams.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-gray-400">
-              Scouting, data sync, and team management are completely free. Unlock unlimited AI strategy with a simple upgrade.
+              ScoutAI is built for teams, not individual seats. Free stays generous; Supporter helps cover real AI token costs so the platform stays sustainable for the community.
             </p>
           </div>
 
@@ -304,10 +304,9 @@ export default async function Home() {
                 <PricingItem included>Team management &amp; roles</PricingItem>
                 <PricingItem included>Offline PWA support</PricingItem>
                 <PricingItem included>Team Pulse chat</PricingItem>
-                <PricingItem included>3 AI strategy messages</PricingItem>
-                <PricingItem included>Standard rate limits</PricingItem>
-                <PricingItem>Unlimited AI chat</PricingItem>
-                <PricingItem>Alliance pick optimizer</PricingItem>
+                <PricingItem included>Unlimited prompts (team usage capped)</PricingItem>
+                <PricingItem included>3 team AI interactions per 3 hours</PricingItem>
+                <PricingItem>13 team AI interactions per 3 hours</PricingItem>
               </ul>
               <Link
                 href="/signup"
@@ -317,30 +316,30 @@ export default async function Home() {
               </Link>
             </div>
 
-            {/* Pro Tier */}
+            {/* Supporter Tier */}
             <div className="relative rounded-2xl border border-blue-500/40 bg-gray-900/80 p-8 shadow-xl shadow-blue-500/5">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-blue-600 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-blue-600/30">
                 Recommended
               </div>
-              <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">Pro</p>
+              <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">Supporter</p>
               <p className="mt-4 text-4xl font-bold text-white">
-                $1<span className="text-2xl">.99</span>
+                $5<span className="text-2xl">.99</span>
               </p>
-              <p className="mt-1 text-sm text-gray-400">per month</p>
+              <p className="mt-1 text-sm text-gray-400">per team / month</p>
               <ul className="mt-8 space-y-3 text-sm text-gray-300">
                 <PricingItem included>Everything in Free</PricingItem>
-                <PricingItem included>Unlimited AI strategy chat</PricingItem>
+                <PricingItem included>13 team AI interactions per 3 hours</PricingItem>
                 <PricingItem included>Alliance pick optimizer</PricingItem>
                 <PricingItem included>Pre-match &amp; post-match briefs</PricingItem>
                 <PricingItem included>Natural language data queries</PricingItem>
-                <PricingItem included>2x higher rate limits</PricingItem>
-                <PricingItem included>Priority support</PricingItem>
+                <PricingItem included>Faster AI capacity for your team</PricingItem>
+                <PricingItem included>Helps fund shared token usage</PricingItem>
               </ul>
               <Link
                 href="/signup"
                 className="mt-8 block rounded-lg bg-blue-600 py-2.5 text-center text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
               >
-                Upgrade to Pro
+                Upgrade to Supporter
               </Link>
             </div>
           </div>
