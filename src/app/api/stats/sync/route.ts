@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, retryAfterSeconds } from "@/lib/rate-limit";
 
 const STATBOTICS_BASE = "https://api.statbotics.io/v3";
+const STATBOTICS_CONCURRENCY = 6;
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 interface StatboticsTeamEvent {
   epa: {
@@ -95,7 +99,7 @@ export async function POST(request: Request) {
       .select("team_number")
       .eq("event_id", dbEvent.id);
 
-    let teamNumbers = new Set<number>((eventTeams ?? []).map((t) => t.team_number));
+    const teamNumbers = new Set<number>((eventTeams ?? []).map((t) => t.team_number));
 
     if (teamNumbers.size === 0) {
       const { data: matches } = await supabase
@@ -119,7 +123,16 @@ export async function POST(request: Request) {
     }
 
     // Fetch EPA from Statbotics for each team
-    const statsRows = [];
+    const statsRows: Array<{
+      team_number: number;
+      event_id: string;
+      epa: number | null;
+      auto_epa: number | null;
+      teleop_epa: number | null;
+      endgame_epa: number | null;
+      win_rate: number | null;
+      last_synced_at: string;
+    }> = [];
     let successCount = 0;
     let errorCount = 0;
     const failedTeams: number[] = [];
@@ -135,44 +148,56 @@ export async function POST(request: Request) {
       return null;
     };
 
-    for (const teamNum of teamNumbers) {
-      try {
-        const res = await fetch(
-          `${STATBOTICS_BASE}/team_event/${teamNum}/${eventKey}`,
-          { next: { revalidate: 600 } } // Cache 10 min
-        );
+    const teamList = Array.from(teamNumbers);
+    for (let i = 0; i < teamList.length; i += STATBOTICS_CONCURRENCY) {
+      const batch = teamList.slice(i, i + STATBOTICS_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(async (teamNum) => {
+          try {
+            const res = await fetch(
+              `${STATBOTICS_BASE}/team_event/${teamNum}/${eventKey}`,
+              { next: { revalidate: 600 } } // Cache 10 min
+            );
 
-        if (!res.ok) {
+            if (!res.ok) {
+              return { teamNum, row: null as null };
+            }
+
+            const data = (await res.json()) as StatboticsTeamEvent;
+            const breakdown = data.epa?.breakdown;
+            const record = data.record?.season;
+
+            const totalGames =
+              (record?.wins ?? 0) + (record?.losses ?? 0) + (record?.ties ?? 0);
+
+            return {
+              teamNum,
+              row: {
+                team_number: teamNum,
+                event_id: dbEvent.id,
+                epa: extractMean(breakdown?.total_points),
+                auto_epa: extractMean(breakdown?.auto_points),
+                teleop_epa: extractMean(breakdown?.teleop_points),
+                endgame_epa: extractMean(breakdown?.endgame_points),
+                win_rate: totalGames > 0 ? (record?.wins ?? 0) / totalGames : null,
+                last_synced_at: new Date().toISOString(),
+              },
+            };
+          } catch {
+            return { teamNum, row: null as null };
+          }
+        })
+      );
+
+      for (const result of results) {
+        if (!result.row) {
           errorCount++;
-          if (failedTeams.length < 20) failedTeams.push(teamNum);
+          if (failedTeams.length < 20) failedTeams.push(result.teamNum);
           continue;
         }
-
-        const data = (await res.json()) as StatboticsTeamEvent;
-        const breakdown = data.epa?.breakdown;
-        const record = data.record?.season;
-
-        const totalGames =
-          (record?.wins ?? 0) + (record?.losses ?? 0) + (record?.ties ?? 0);
-
-        statsRows.push({
-          team_number: teamNum,
-          event_id: dbEvent.id,
-          epa: extractMean(breakdown?.total_points),
-          auto_epa: extractMean(breakdown?.auto_points),
-          teleop_epa: extractMean(breakdown?.teleop_points),
-          endgame_epa: extractMean(breakdown?.endgame_points),
-          win_rate: totalGames > 0 ? (record?.wins ?? 0) / totalGames : null,
-          last_synced_at: new Date().toISOString(),
-        });
+        statsRows.push(result.row);
         successCount++;
-      } catch {
-        errorCount++;
-        if (failedTeams.length < 20) failedTeams.push(teamNum);
       }
-
-      // Rate limit: ~60 req/min for Statbotics
-      await new Promise((resolve) => setTimeout(resolve, 1100));
     }
 
     // Upsert stats

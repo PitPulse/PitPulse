@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { PickListContent } from "@/types/strategy";
 import { GeneratePickListButton } from "../picklist/generate-button";
+import { AnimatePresence, motion } from "framer-motion";
 import { z } from "zod";
 
 type RankingEntry = { rank: number; teamNumber: number };
@@ -164,6 +165,41 @@ function uniqueSortedPool(
   });
 }
 
+function promoteLowerSeedCaptains(
+  alliances: DraftAlliance[],
+  pool: number[],
+  startAllianceIndex: number,
+  rankMap: Map<number, number>
+): { alliances: DraftAlliance[]; pool: number[] } {
+  const nextAlliances = alliances.map((alliance) => ({
+    ...alliance,
+    slots: [...alliance.slots],
+  }));
+  let nextPool = [...pool];
+
+  let index = startAllianceIndex;
+  while (index < nextAlliances.length - 1) {
+    if (nextAlliances[index].slots[0] !== null) break;
+    nextAlliances[index].slots[0] = nextAlliances[index + 1].slots[0];
+    nextAlliances[index + 1].slots[0] = null;
+    index += 1;
+  }
+
+  const lastIndex = nextAlliances.length - 1;
+  if (lastIndex >= 0 && nextAlliances[lastIndex].slots[0] === null) {
+    const sortedPool = uniqueSortedPool(nextPool, rankMap);
+    const nextCaptain = sortedPool[0] ?? null;
+    if (nextCaptain !== null) {
+      nextAlliances[lastIndex].slots[0] = nextCaptain;
+      nextPool = removeFromArray(sortedPool, nextCaptain);
+    } else {
+      nextPool = sortedPool;
+    }
+  }
+
+  return { alliances: nextAlliances, pool: nextPool };
+}
+
 type DragPayload =
   | { teamNumber: number; from: "pool" }
   | { teamNumber: number; from: "declined" }
@@ -180,6 +216,33 @@ function parseDrag(data: string | null): DragPayload | null {
   } catch {
     return null;
   }
+}
+
+function setTeamDragPreview(event: DragEvent<HTMLElement>) {
+  const source = event.currentTarget;
+  if (!source || !event.dataTransfer) return;
+
+  const rect = source.getBoundingClientRect();
+  const preview = source.cloneNode(true) as HTMLElement;
+  preview.style.position = "fixed";
+  preview.style.top = "-10000px";
+  preview.style.left = "-10000px";
+  preview.style.width = `${rect.width}px`;
+  preview.style.maxWidth = `${rect.width}px`;
+  preview.style.pointerEvents = "none";
+  preview.style.margin = "0";
+  preview.style.transform = "none";
+  preview.style.zIndex = "99999";
+
+  document.body.appendChild(preview);
+
+  const offsetX = Math.max(8, Math.min(rect.width - 8, event.clientX - rect.left));
+  const offsetY = Math.max(8, Math.min(rect.height - 8, event.clientY - rect.top));
+  event.dataTransfer.setDragImage(preview, offsetX, offsetY);
+
+  requestAnimationFrame(() => {
+    preview.remove();
+  });
 }
 
 export function DraftRoom({
@@ -232,8 +295,12 @@ export function DraftRoom({
   const [strictDeclines, setStrictDeclines] = useState(true);
   const [newTeamInput, setNewTeamInput] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<DragPayload | null>(null);
+  const [poolDragOver, setPoolDragOver] = useState(false);
+  const [declinedDragOver, setDeclinedDragOver] = useState(false);
   const saveQueueRef = useRef(Promise.resolve());
   const stateRef = useRef(state);
+  const poolDragDepthRef = useRef(0);
+  const declinedDragDepthRef = useRef(0);
 
   useEffect(() => {
     stateRef.current = state;
@@ -395,6 +462,54 @@ export function DraftRoom({
     saveState(bumped);
   }
 
+  function handlePoolDragEnter(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    poolDragDepthRef.current += 1;
+    if (!poolDragOver) setPoolDragOver(true);
+  }
+
+  function handlePoolDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!poolDragOver) setPoolDragOver(true);
+  }
+
+  function handlePoolDragLeave() {
+    poolDragDepthRef.current = Math.max(0, poolDragDepthRef.current - 1);
+    if (poolDragDepthRef.current === 0) setPoolDragOver(false);
+  }
+
+  function handlePoolDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    poolDragDepthRef.current = 0;
+    setPoolDragOver(false);
+    const data = parseDrag(event.dataTransfer.getData("application/json"));
+    if (data) applyMoveTeamToPool(data);
+  }
+
+  function handleDeclinedDragEnter(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    declinedDragDepthRef.current += 1;
+    if (!declinedDragOver) setDeclinedDragOver(true);
+  }
+
+  function handleDeclinedDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!declinedDragOver) setDeclinedDragOver(true);
+  }
+
+  function handleDeclinedDragLeave() {
+    declinedDragDepthRef.current = Math.max(0, declinedDragDepthRef.current - 1);
+    if (declinedDragDepthRef.current === 0) setDeclinedDragOver(false);
+  }
+
+  function handleDeclinedDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    declinedDragDepthRef.current = 0;
+    setDeclinedDragOver(false);
+    const data = parseDrag(event.dataTransfer.getData("application/json"));
+    if (data) applyMoveTeamToDeclined(data);
+  }
+
   function resetDraft() {
     const resetState = buildInitialState(rankings, extraTeams, state.settings);
     updateState(resetState);
@@ -402,10 +517,6 @@ export function DraftRoom({
   }
 
   function applyMoveTeamToPool(payload: DragPayload) {
-    if (strictDeclines && payload.from === "declined") {
-      setSaveError("Strict mode blocks returning declined teams to the pool.");
-      return;
-    }
     const next = { ...state };
     if (payload.from === "slot") {
       next.alliances = next.alliances.map((alliance, index) => {
@@ -414,6 +525,16 @@ export function DraftRoom({
         slots[payload.slotIndex] = null;
         return { ...alliance, slots };
       });
+      if (payload.slotIndex === 0) {
+        const promoted = promoteLowerSeedCaptains(
+          next.alliances,
+          next.pool,
+          payload.allianceIndex,
+          rankMap
+        );
+        next.alliances = promoted.alliances;
+        next.pool = promoted.pool;
+      }
     } else if (payload.from === "declined") {
       next.declined = removeFromArray(next.declined, payload.teamNumber);
     }
@@ -434,6 +555,16 @@ export function DraftRoom({
         slots[payload.slotIndex] = null;
         return { ...alliance, slots };
       });
+      if (payload.slotIndex === 0) {
+        const promoted = promoteLowerSeedCaptains(
+          next.alliances,
+          next.pool,
+          payload.allianceIndex,
+          rankMap
+        );
+        next.alliances = promoted.alliances;
+        next.pool = promoted.pool;
+      }
     } else if (payload.from === "pool") {
       next.pool = removeFromArray(next.pool, payload.teamNumber);
     }
@@ -459,6 +590,11 @@ export function DraftRoom({
     if (!targetAlliance) return;
 
     const currentTeam = targetAlliance.slots[slotIndex] ?? null;
+    const movingCaptainToPickSlot =
+      payload.from === "slot" &&
+      payload.slotIndex === 0 &&
+      slotIndex > 0 &&
+      (payload.allianceIndex !== allianceIndex || payload.slotIndex !== slotIndex);
 
     if (payload.from === "slot") {
       next.alliances = next.alliances.map((alliance, index) => {
@@ -476,7 +612,7 @@ export function DraftRoom({
     }
 
     if (currentTeam) {
-      if (payload.from === "slot") {
+      if (payload.from === "slot" && !movingCaptainToPickSlot) {
         next.alliances = next.alliances.map((alliance, index) => {
           if (index === payload.allianceIndex) {
             const slots = [...alliance.slots];
@@ -496,6 +632,17 @@ export function DraftRoom({
       slots[slotIndex] = payload.teamNumber;
       return { ...alliance, slots };
     });
+
+    if (movingCaptainToPickSlot && payload.from === "slot") {
+      const promoted = promoteLowerSeedCaptains(
+        next.alliances,
+        next.pool,
+        payload.allianceIndex,
+        rankMap
+      );
+      next.alliances = promoted.alliances;
+      next.pool = promoted.pool;
+    }
 
     const shouldLogPick = slotIndex > 0 && payload.teamNumber !== currentTeam;
     if (shouldLogPick) {
@@ -673,7 +820,7 @@ export function DraftRoom({
                 <div>
                   <p className="text-sm text-gray-400">
                     Alliance <span className="font-semibold text-white">{currentAllianceIndex !== null ? currentAllianceIndex + 1 : ""}</span>
-                    {" "}picking — Round <span className="font-semibold text-white">{currentRound}</span>
+                    {" "}up next — Round <span className="font-semibold text-white">{currentRound}</span>
                   </p>
                   <p className="text-xs text-gray-500">
                     Pick {currentPickIndex + 1} of {totalPicks} — {state.pool.length} teams remaining
@@ -771,36 +918,6 @@ export function DraftRoom({
           </div>
         )}
 
-        {/* Selected team banner (mobile tap-to-pick) */}
-        {selectedTeam && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-blue-500/40 bg-blue-500/15 px-3 py-2">
-            <p className="text-xs text-blue-200">
-              <span className="font-semibold">Team {selectedTeam.teamNumber}</span> selected — tap a slot to place, or tap the team again to deselect
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => applyMoveTeamToDeclined(selectedTeam)}
-                className="rounded px-2 py-1 text-xs font-medium text-red-300 hover:bg-red-500/20"
-              >
-                Decline
-              </button>
-              {selectedTeam.from !== "pool" && (
-                <button
-                  onClick={() => applyMoveTeamToPool(selectedTeam)}
-                  className="rounded px-2 py-1 text-xs font-medium text-gray-300 hover:bg-white/10"
-                >
-                  Return to pool
-                </button>
-              )}
-              <button
-                onClick={() => setSelectedTeam(null)}
-                className="rounded px-2 py-1 text-xs font-medium text-gray-400 hover:bg-white/10"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
@@ -829,6 +946,7 @@ export function DraftRoom({
                 <GeneratePickListButton
                   eventId={eventId}
                   label="Generate Pick List"
+                  requireTeamProfile
                 />
               </div>
             )}
@@ -842,7 +960,7 @@ export function DraftRoom({
             )}
 
             {pickList && bestAvailable.length > 0 && (
-              <div className="space-y-2">
+              <div className="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
                 {bestAvailable.map((team, i) => (
                   <div
                     key={team.teamNumber}
@@ -853,6 +971,7 @@ export function DraftRoom({
                         serializeDrag({ teamNumber: team.teamNumber, from: "pool" })
                       );
                       event.dataTransfer.effectAllowed = "move";
+                      setTeamDragPreview(event);
                     }}
                     onClick={() => handleTeamTap({ teamNumber: team.teamNumber, from: "pool" })}
                     className={`group cursor-pointer rounded-xl border p-3 transition ${
@@ -927,10 +1046,20 @@ export function DraftRoom({
             )}
           </div>
 
-          {/* Pool + Declined */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Available Pool */}
-            <div className="rounded-2xl dashboard-panel p-4 space-y-3">
+          {/* Available Pool */}
+          <div
+            onDragEnter={handlePoolDragEnter}
+            onDragOver={handlePoolDragOver}
+            onDragLeave={handlePoolDragLeave}
+            onDrop={handlePoolDrop}
+            className={`relative overflow-hidden rounded-2xl dashboard-panel p-4 transition ${
+              poolDragOver ? "ring-1 ring-blue-500/40 bg-blue-500/5" : ""
+            }`}
+          >
+            {poolDragOver && (
+              <div className="pointer-events-none absolute inset-0 rounded-2xl bg-blue-300/10" />
+            )}
+            <div className="relative z-10 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-white">Available Pool</h3>
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-gray-400 tabular-nums">
@@ -961,9 +1090,11 @@ export function DraftRoom({
                 </button>
               </div>
 
-              <PoolDropZone onDrop={applyMoveTeamToPool} />
+              <p className={`text-[11px] ${poolDragOver ? "text-blue-200" : "text-gray-500"}`}>
+                Drop anywhere in this box to return teams to the pool.
+              </p>
 
-              <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
+              <div className="max-h-96 space-y-1 overflow-y-auto pr-1">
                 {availablePool.map((team) => (
                   <PoolTeamChip
                     key={team}
@@ -979,38 +1110,6 @@ export function DraftRoom({
                 {availablePool.length === 0 && (
                   <p className="py-4 text-center text-xs text-gray-500">
                     {poolSearch ? "No matches found." : "Pool is empty."}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Declined */}
-            <div className="rounded-2xl dashboard-panel p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Declined</h3>
-                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 tabular-nums">
-                  {state.declined.length}
-                </span>
-              </div>
-
-              <DeclinedDropZone onDrop={applyMoveTeamToDeclined} />
-
-              <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
-                {state.declined.map((team) => (
-                  <PoolTeamChip
-                    key={team}
-                    teamNumber={team}
-                    teamName={teamNames[team]}
-                    rank={rankMap.get(team)}
-                    isSelected={selectedTeam?.teamNumber === team}
-                    payload={{ teamNumber: team, from: "declined" }}
-                    onTap={handleTeamTap}
-                    declined
-                  />
-                ))}
-                {state.declined.length === 0 && (
-                  <p className="py-4 text-center text-xs text-gray-500">
-                    No declined teams.
                   </p>
                 )}
               </div>
@@ -1092,14 +1191,13 @@ export function DraftRoom({
                                     : null
                                 }
                                 onDrop={(payload) => applyMoveTeamToSlot(payload, allianceIndex, slotIndex)}
-                                onTap={() => {
+                              onTap={() => {
                                   if (selectedTeam) {
                                     handleSlotTap(allianceIndex, slotIndex);
                                   } else if (slotTeam) {
                                     handleTeamTap({ teamNumber: slotTeam, from: "slot", allianceIndex, slotIndex });
                                   }
                                 }}
-                                onDragStart={(payload) => serializeDrag(payload)}
                               />
                             </td>
                           );
@@ -1112,8 +1210,105 @@ export function DraftRoom({
             </div>
           </div>
 
+          {/* Declined */}
+          <div
+            onDragEnter={handleDeclinedDragEnter}
+            onDragOver={handleDeclinedDragOver}
+            onDragLeave={handleDeclinedDragLeave}
+            onDrop={handleDeclinedDrop}
+            className={`relative overflow-hidden rounded-2xl dashboard-panel p-4 transition ${
+              declinedDragOver ? "ring-1 ring-red-500/40 bg-red-500/5" : ""
+            }`}
+          >
+            {declinedDragOver && (
+              <div className="pointer-events-none absolute inset-0 rounded-2xl bg-red-300/10" />
+            )}
+            <div className="relative z-10 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">Declined</h3>
+                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 tabular-nums">
+                  {state.declined.length}
+                </span>
+              </div>
+
+              <p className={`text-[11px] ${declinedDragOver ? "text-red-200" : "text-red-300/60"}`}>
+                Drop anywhere in this box to decline a team.
+              </p>
+
+              <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
+                {state.declined.map((team) => (
+                  <PoolTeamChip
+                    key={team}
+                    teamNumber={team}
+                    teamName={teamNames[team]}
+                    rank={rankMap.get(team)}
+                    isSelected={selectedTeam?.teamNumber === team}
+                    payload={{ teamNumber: team, from: "declined" }}
+                    onTap={handleTeamTap}
+                    declined
+                  />
+                ))}
+                {state.declined.length === 0 && (
+                  <p className="py-4 text-center text-xs text-gray-500">
+                    No declined teams.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
         </section>
       </div>
+
+      <AnimatePresence>
+        {selectedTeam && (
+          <motion.div
+            initial={{ opacity: 0, y: 14, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm rounded-lg bg-gradient-to-r from-sky-500 to-blue-400 px-4 py-3 text-sm font-medium text-white shadow-lg"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <span className="mt-1 inline-block h-2 w-2 rounded-full bg-white/85" />
+                <p className="text-sm">
+                  <span className="font-semibold">Team {selectedTeam.teamNumber}</span> selected — tap a slot to place, or tap the team again to deselect
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedTeam(null)}
+                className="text-xs opacity-80 hover:opacity-100"
+                aria-label="Close selected team popup"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={() => applyMoveTeamToDeclined(selectedTeam)}
+                className="rounded bg-white/20 px-2 py-0.5 text-xs text-white hover:bg-white/30"
+              >
+                Decline
+              </button>
+              {selectedTeam.from !== "pool" && (
+                <button
+                  onClick={() => applyMoveTeamToPool(selectedTeam)}
+                  className="rounded bg-white/20 px-2 py-0.5 text-xs text-white hover:bg-white/30"
+                >
+                  Return to pool
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedTeam(null)}
+                className="rounded bg-white/20 px-2 py-0.5 text-xs text-white hover:bg-white/30"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1146,6 +1341,7 @@ function PoolTeamChip({
           serializeDrag(payload)
         );
         event.dataTransfer.effectAllowed = "move";
+        setTeamDragPreview(event);
       }}
       onClick={() => onTap(payload)}
       className={`flex cursor-pointer items-center justify-between rounded-lg border px-2.5 py-1.5 text-xs transition ${
@@ -1186,7 +1382,6 @@ function AllianceSlot({
   payload,
   onDrop,
   onTap,
-  onDragStart,
 }: {
   teamNumber: number | null;
   teamName?: string;
@@ -1197,36 +1392,61 @@ function AllianceSlot({
   payload: DragPayload | null;
   onDrop: (payload: DragPayload) => void;
   onTap: () => void;
-  onDragStart: (payload: DragPayload) => string;
 }) {
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepthRef = useRef(0);
+
   return (
     <div
-      onDragOver={(event) => event.preventDefault()}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        dragDepthRef.current += 1;
+        if (!dragOver) setDragOver(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!dragOver) setDragOver(true);
+      }}
+      onDragLeave={() => {
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setDragOver(false);
+      }}
       onDrop={(event) => {
         event.preventDefault();
+        dragDepthRef.current = 0;
+        setDragOver(false);
         const data = parseDrag(event.dataTransfer.getData("application/json"));
         if (data) onDrop(data);
       }}
+      draggable={Boolean(payload)}
+      onDragStart={(event) => {
+        if (!payload) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.setData("application/json", serializeDrag(payload));
+        event.dataTransfer.effectAllowed = "move";
+        setTeamDragPreview(event);
+      }}
       onClick={onTap}
-      className={`min-w-[110px] rounded-lg border px-2 py-1.5 text-xs transition ${
-        isOnClock
+      className={`relative overflow-hidden min-w-[110px] rounded-lg border px-2 py-1.5 text-xs transition ${
+        dragOver
+          ? "border-blue-400/70 bg-blue-500/15 ring-1 ring-blue-500/30"
+          : isOnClock
           ? "border-blue-500/50 bg-blue-500/10 ring-1 ring-blue-500/30"
           : isSelected
           ? "border-blue-500/40 bg-blue-500/10"
           : teamNumber
           ? "border-white/10 bg-white/[0.03]"
           : "border-dashed border-white/10 bg-transparent"
-      } ${!teamNumber && !isCaptain ? "cursor-pointer" : ""}`}
+      } ${teamNumber && payload ? "cursor-grab active:cursor-grabbing" : !teamNumber && !isCaptain ? "cursor-pointer" : ""}`}
     >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 rounded-lg bg-blue-300/10" />
+      )}
       {teamNumber ? (
         <div
-          draggable={Boolean(payload) && !isCaptain}
-          onDragStart={(event) => {
-            if (!payload || isCaptain) { event.preventDefault(); return; }
-            event.dataTransfer.setData("application/json", onDragStart(payload));
-            event.dataTransfer.effectAllowed = "move";
-          }}
-          className={`flex items-center gap-1.5 ${isCaptain ? "" : "cursor-grab active:cursor-grabbing"}`}
+          className="relative z-10 flex items-center gap-1.5"
         >
           <span className="font-semibold text-white tabular-nums">{teamNumber}</span>
           {teamName && (
@@ -1237,64 +1457,10 @@ function AllianceSlot({
           )}
         </div>
       ) : (
-        <span className={`text-[10px] ${isOnClock ? "text-blue-400" : "text-gray-600"}`}>
-          {isOnClock ? "On the clock" : "—"}
+        <span className={`relative z-10 text-[10px] ${isOnClock ? "text-blue-400" : "text-gray-600"}`}>
+          {isOnClock ? "Up next" : "—"}
         </span>
       )}
-    </div>
-  );
-}
-
-function PoolDropZone({
-  onDrop,
-}: {
-  onDrop: (payload: DragPayload) => void;
-}) {
-  const [dragOver, setDragOver] = useState(false);
-  return (
-    <div
-      onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(event) => {
-        event.preventDefault();
-        setDragOver(false);
-        const data = parseDrag(event.dataTransfer.getData("application/json"));
-        if (data) onDrop(data);
-      }}
-      className={`rounded-lg border border-dashed px-3 py-2 text-center text-xs transition ${
-        dragOver
-          ? "border-blue-500/50 bg-blue-500/10 text-blue-300"
-          : "border-white/15 text-gray-500"
-      }`}
-    >
-      Drop here to return to pool
-    </div>
-  );
-}
-
-function DeclinedDropZone({
-  onDrop,
-}: {
-  onDrop: (payload: DragPayload) => void;
-}) {
-  const [dragOver, setDragOver] = useState(false);
-  return (
-    <div
-      onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(event) => {
-        event.preventDefault();
-        setDragOver(false);
-        const data = parseDrag(event.dataTransfer.getData("application/json"));
-        if (data) onDrop(data);
-      }}
-      className={`rounded-lg border border-dashed px-3 py-2 text-center text-xs transition ${
-        dragOver
-          ? "border-red-500/50 bg-red-500/15 text-red-200"
-          : "border-red-400/30 bg-red-500/5 text-red-300/60"
-      }`}
-    >
-      Drop here to decline
     </div>
   );
 }

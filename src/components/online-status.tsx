@@ -9,8 +9,9 @@ import {
 } from "@/lib/offline-queue";
 
 export function OnlineStatus() {
-  const [mounted, setMounted] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine
+  );
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
@@ -28,8 +29,7 @@ export function OnlineStatus() {
   }, []);
 
   useEffect(() => {
-    setMounted(true);
-    setIsOnline(navigator.onLine);
+    if (typeof window === "undefined") return;
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -98,8 +98,6 @@ export function OnlineStatus() {
     }
     return undefined;
   }, [isOnline, pendingCount, syncing, syncPendingEntries]);
-
-  if (!mounted) return null;
 
   // Hidden when online with nothing pending and no errors
   if (isOnline && pendingCount === 0 && syncErrors === 0) return null;

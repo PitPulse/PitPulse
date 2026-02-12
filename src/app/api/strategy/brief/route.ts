@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BriefContentSchema } from "@/types/strategy";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import { checkRateLimit, retryAfterSeconds } from "@/lib/rate-limit";
+import { buildFrcGamePrompt } from "@/lib/frc-game-prompt";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
   // Get match data
   const { data: match, error: matchError } = await supabase
     .from("matches")
-    .select("*, events(id, name, tba_key)")
+    .select("*, events(id, name, year, tba_key)")
     .eq("id", matchId)
     .single();
 
@@ -160,6 +161,11 @@ export async function POST(request: NextRequest) {
 
   // Build prompt data
   const promptData = {
+    event: {
+      name: match.events?.name ?? null,
+      key: match.events?.tba_key ?? null,
+      year: match.events?.year ?? null,
+    },
     match: {
       comp_level: match.comp_level,
       match_number: match.match_number,
@@ -173,6 +179,8 @@ export async function POST(request: NextRequest) {
   };
 
   const systemPrompt = `You are an expert FRC (FIRST Robotics Competition) strategy analyst. Analyze the provided match data and generate a strategic brief.
+
+${buildFrcGamePrompt(match.events?.year ?? null)}
 
 You will receive:
 - Match details (alliances, comp level)
@@ -220,6 +228,9 @@ Guidelines:
 - If scouting data is missing, note it and base analysis on EPA stats
 - Predictions should factor in both EPA and scouting observations
 - Recommendations should be specific and actionable for drive teams
+- Be candid about weak teams or fragile matchups when data supports it, using professional wording.
+- Avoid comparative labels like "lower", "low-tier", "below average", or similar phrasing.
+- Prefer neutral alternatives such as "currently limited scoring output" or "not a top-priority pick for this role."
 - Keep insights concise but informative
 - Do not use emojis or markdown`;
 

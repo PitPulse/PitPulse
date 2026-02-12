@@ -480,7 +480,7 @@ export function SortableEvents({
         Drag cards to reorder. On touch devices, use the arrow controls.
       </p>
       <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {renderItems.map((item, i) => {
+        {renderItems.map((item) => {
           if (item.type === "placeholder") {
             return (
               <div

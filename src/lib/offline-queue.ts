@@ -9,9 +9,14 @@ export interface PendingEntry {
   org_id: string;
   scouted_by: string;
   auto_score: number;
+  auto_start_position?: string | null;
+  auto_notes?: string | null;
+  shooting_range?: string | null;
+  shooting_reliability?: number | null;
   teleop_score: number;
   endgame_score: number;
   defense_rating: number;
+  cycle_time_rating?: number | null;
   reliability_rating: number;
   notes: string;
   created_at: string;

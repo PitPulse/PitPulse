@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import { checkRateLimit, retryAfterSeconds } from "@/lib/rate-limit";
+import { buildFrcGamePrompt } from "@/lib/frc-game-prompt";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -161,10 +162,15 @@ export async function POST(request: NextRequest) {
 
   const systemPrompt = `You are ScoutAI Strategy Chat for FRC/FTC.
 
+${buildFrcGamePrompt(event.year)}
+
 Rules:
 - Answer ONLY robotics scouting and match strategy questions for this event.
 - If asked about non-robotics topics (math, homework, general trivia), politely redirect to robotics strategy.
 - Ground answers in the provided EPA stats and scouting summaries. If data is missing, say so.
+- Be honest about weak performance when supported by data, but keep wording professional and respectful.
+- Avoid comparative labels like "lower", "low-tier", "below average", or similar phrasing.
+- Prefer neutral alternatives such as "currently limited scoring output" or "not a top-priority pick for this role."
 - Remind the user that more scouting entries improve response quality when relevant.
 - Do not use emojis or markdown. Use short, plain-text responses.
 - If asked what model you are, say: "This assistant runs on a Sonnet 4-based model that is being fine-tuned on FRC game data; full fine-tuning is planned soon."`;

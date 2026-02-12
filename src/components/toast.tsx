@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useRef } from "react";
 
 type ToastType = "success" | "error" | "info";
 
@@ -25,11 +25,6 @@ export function useToast() {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const counter = useRef(0);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const toast = useCallback((message: string, type: ToastType = "info") => {
     const id = String(++counter.current);
@@ -45,11 +40,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toast }}>
-      {children}
+      <ToastContext.Provider value={{ toast }}>
+        {children}
 
       {/* Toast container */}
-      {mounted && (
+      {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
           {toasts.map((t) => (
             <div

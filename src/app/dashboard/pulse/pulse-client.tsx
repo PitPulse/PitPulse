@@ -64,6 +64,28 @@ const ROLE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+function buildOnlineList(
+  state: Record<string, Array<{ userId: string; name: string; roles?: string[] }>>
+) {
+  const map = new Map<string, { id: string; name: string; roles: string[] }>();
+  Object.values(state).forEach((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.userId) return;
+      map.set(entry.userId, {
+        id: entry.userId,
+        name: entry.name || "Teammate",
+        roles: entry.roles ?? [],
+      });
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function extractMentions(text: string) {
+  const matches = text.match(/@([a-z0-9_-]+)/gi) ?? [];
+  return matches.map((m) => m.slice(1).toLowerCase());
+}
+
 export function PulseClient({
   orgId,
   userId,
@@ -92,11 +114,17 @@ export function PulseClient({
   const optimisticIdsRef = useRef(new Set<string>());
   const typingUsersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const typingThrottleRef = useRef(0);
+  const tempCounterRef = useRef(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [notificationState, setNotificationState] = useState<
     "unsupported" | NotificationPermission
-  >("unsupported");
+  >(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return "unsupported";
+    }
+    return Notification.permission;
+  });
 
   const hydrateMessageRefs = useCallback(
     (list: RawMessage[]) => {
@@ -124,6 +152,27 @@ export function PulseClient({
       messageIdsRef.current = new Set(list.map((m) => m.id));
     },
     [displayName, teamRoles, userId]
+  );
+
+  const isMentioned = useCallback(
+    (message: RawMessage) => {
+      const mentions = extractMentions(message.content);
+      if (mentions.length === 0) return false;
+      if (mentions.includes("everyone") || mentions.includes("all")) return true;
+      const aliases = new Set<string>();
+      if (displayName) {
+        aliases.add(displayName.toLowerCase());
+        const first = displayName.split(/\s+/)[0];
+        if (first) aliases.add(first.toLowerCase());
+      }
+      if (mentions.some((mention) => aliases.has(mention))) return true;
+      if (teamRoles.length > 0) {
+        const roleSet = new Set(teamRoles.map((role) => role.toLowerCase()));
+        if (mentions.some((mention) => roleSet.has(mention))) return true;
+      }
+      return false;
+    },
+    [displayName, teamRoles]
   );
 
   useEffect(() => {
@@ -195,16 +244,6 @@ export function PulseClient({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if ("Notification" in window) {
-        setNotificationState(Notification.permission);
-      } else {
-        setNotificationState("unsupported");
-      }
-    }
-  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -391,7 +430,7 @@ export function PulseClient({
       channelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [orgId, supabase, toast, userId, displayName, teamRoles]);
+  }, [orgId, supabase, toast, userId, displayName, teamRoles, isMentioned]);
 
   const filteredMessages = useMemo(() => {
     if (filter === "all") return messages;
@@ -406,7 +445,7 @@ export function PulseClient({
       : message.profiles;
     return (
       profile?.display_name ||
-      authorMapRef.current[message.author_id] ||
+      (message.author_id === userId ? displayName : null) ||
       "Teammate"
     );
   }
@@ -418,7 +457,7 @@ export function PulseClient({
       : reply.profiles;
     return (
       profile?.display_name ||
-      authorMapRef.current[reply.author_id] ||
+      (reply.author_id === userId ? displayName : null) ||
       "Teammate"
     );
   }
@@ -429,26 +468,9 @@ export function PulseClient({
       : message.profiles;
     return (
       profile?.team_roles ||
-      roleMapRef.current[message.author_id] ||
+      (message.author_id === userId ? teamRoles : null) ||
       []
     );
-  }
-
-  function buildOnlineList(
-    state: Record<string, Array<{ userId: string; name: string; roles?: string[] }>>
-  ) {
-    const map = new Map<string, { id: string; name: string; roles: string[] }>();
-    Object.values(state).forEach((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.userId) return;
-        map.set(entry.userId, {
-          id: entry.userId,
-          name: entry.name || "Teammate",
-          roles: entry.roles ?? [],
-        });
-      });
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   function formatTime(value: string) {
@@ -469,29 +491,6 @@ export function PulseClient({
       hour: "numeric",
       minute: "2-digit",
     });
-  }
-
-  function extractMentions(text: string) {
-    const matches = text.match(/@([a-z0-9_-]+)/gi) ?? [];
-    return matches.map((m) => m.slice(1).toLowerCase());
-  }
-
-  function isMentioned(message: RawMessage) {
-    const mentions = extractMentions(message.content);
-    if (mentions.length === 0) return false;
-    if (mentions.includes("everyone") || mentions.includes("all")) return true;
-    const aliases = new Set<string>();
-    if (displayName) {
-      aliases.add(displayName.toLowerCase());
-      const first = displayName.split(/\s+/)[0];
-      if (first) aliases.add(first.toLowerCase());
-    }
-    if (mentions.some((m) => aliases.has(m))) return true;
-    if (teamRoles.length > 0) {
-      const roleSet = new Set(teamRoles.map((r) => r.toLowerCase()));
-      if (mentions.some((m) => roleSet.has(m))) return true;
-    }
-    return false;
   }
 
   function renderContent(text: string) {
@@ -531,7 +530,8 @@ export function PulseClient({
       reply_to_id: replyTo?.id ?? null,
     };
 
-    const tempId = `temp-${Date.now()}`;
+    tempCounterRef.current += 1;
+    const tempId = `temp-${userId}-${tempCounterRef.current}`;
     const optimisticMessage: RawMessage = {
       id: tempId,
       content: payload.content,
@@ -915,7 +915,10 @@ export function PulseClient({
             Enable desktop notifications for new Team Pulse updates.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300">
+            <span
+              suppressHydrationWarning
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300"
+            >
               {notificationState === "unsupported"
                 ? "Not supported"
                 : notificationState}

@@ -2,10 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import {
-  upsertAnnouncement,
-  deleteAnnouncement,
-} from "@/lib/staff-actions";
+import { upsertAnnouncement } from "@/lib/staff-actions";
 import { Button } from "@/components/ui/button";
 
 interface Announcement {

@@ -37,6 +37,7 @@ export function SkeletonRow() {
 }
 
 export function SkeletonChart() {
+  const barHeights = [26, 48, 34, 62, 40, 74, 55, 68, 37, 80, 52, 44, 70, 58, 32];
   return (
     <div className="rounded-2xl border border-white/10 bg-gray-900/40 p-6 space-y-4">
       <div className="flex items-baseline justify-between">
@@ -44,11 +45,11 @@ export function SkeletonChart() {
         <Skeleton className="h-6 w-12" />
       </div>
       <div className="flex items-end gap-1 h-32">
-        {Array.from({ length: 15 }).map((_, i) => (
+        {barHeights.map((height, i) => (
           <Skeleton
             key={i}
             className="flex-1 rounded-sm"
-            style={{ height: `${20 + Math.random() * 80}%` } as React.CSSProperties}
+            style={{ height: `${height}%` } as React.CSSProperties}
           />
         ))}
       </div>

@@ -61,18 +61,6 @@ export default async function DashboardPage() {
     .eq("org_id", profile.org_id)
     .order("created_at", { ascending: false });
 
-  const formatEventTitle = (event: {
-    name: string;
-    year?: number | null;
-    start_date?: string | null;
-    tba_key?: string | null;
-  }) => {
-    const year =
-      event.year ??
-      (event.start_date ? event.start_date.slice(0, 4) : event.tba_key?.slice(0, 4));
-    return year ? `${year} ${event.name}` : event.name;
-  };
-
   const compLabel = (
     compLevel: string,
     matchNumber: number,
@@ -110,7 +98,9 @@ export default async function DashboardPage() {
 
   const eventsCount = orgEvents?.length ?? 0;
 
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const sinceDate = new Date();
+  sinceDate.setHours(sinceDate.getHours() - 24);
+  const since = sinceDate.toISOString();
   const { count: pulseCount } = await supabase
     .from("team_messages")
     .select("*", { count: "exact", head: true })

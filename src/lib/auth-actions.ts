@@ -31,14 +31,26 @@ function sanitizeTeamRoles(rawRoles: string[]) {
   );
 }
 
+function resolveSiteUrl() {
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl) return `https://${vercelUrl}`;
+
+  const port = process.env.PORT?.trim() || "3000";
+  return `http://localhost:${port}`;
+}
+
 export async function sendMagicLink(formData: FormData) {
   const supabase = await createClient();
   const email = formData.get("email") as string;
+  const siteUrl = resolveSiteUrl();
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback`,
+      emailRedirectTo: `${siteUrl}/auth/callback`,
     },
   });
 

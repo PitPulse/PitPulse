@@ -1,9 +1,144 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
-import { PickListContentSchema } from "@/types/strategy";
+import { PickListContentSchema, type PickListContent } from "@/types/strategy";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import { checkRateLimit, retryAfterSeconds } from "@/lib/rate-limit";
+import { buildFrcGamePrompt } from "@/lib/frc-game-prompt";
+
+function parseAiJson(text: string): unknown {
+  // Try raw first.
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Continue to fallback parsing.
+  }
+
+  // Handle fenced blocks like ```json ... ```
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1] : text;
+
+  // Pull the outer-most JSON object.
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("No JSON object found in AI response");
+  }
+
+  return JSON.parse(candidate.slice(start, end + 1));
+}
+
+type TeamProfile = {
+  autoStartPositions: Array<"left" | "center" | "right">;
+  shootingRange: "close" | "mid" | "long" | null;
+  cycleTimeRating: number | null;
+  reliabilityRating: number | null;
+  preferredRole: "scorer" | "defender" | "support" | "versatile" | null;
+  notes: string | null;
+};
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizeTeamProfile(value: unknown): TeamProfile | null {
+  const source = asObject(value);
+  if (!source) return null;
+
+  const autoStartPositions = Array.isArray(source.autoStartPositions)
+    ? source.autoStartPositions.filter(
+        (item): item is "left" | "center" | "right" =>
+          item === "left" || item === "center" || item === "right"
+      )
+    : [];
+
+  const shootingRange =
+    source.shootingRange === "close" ||
+    source.shootingRange === "mid" ||
+    source.shootingRange === "long"
+      ? source.shootingRange
+      : null;
+
+  const cycleTimeRaw = Number(source.cycleTimeRating);
+  const reliabilityRaw = Number(source.reliabilityRating);
+  const cycleTimeRating =
+    Number.isFinite(cycleTimeRaw) && cycleTimeRaw >= 1 && cycleTimeRaw <= 5
+      ? Math.round(cycleTimeRaw)
+      : null;
+  const reliabilityRating =
+    Number.isFinite(reliabilityRaw) &&
+    reliabilityRaw >= 1 &&
+    reliabilityRaw <= 5
+      ? Math.round(reliabilityRaw)
+      : null;
+
+  const preferredRole =
+    source.preferredRole === "scorer" ||
+    source.preferredRole === "defender" ||
+    source.preferredRole === "support" ||
+    source.preferredRole === "versatile"
+      ? source.preferredRole
+      : null;
+
+  const notes =
+    typeof source.notes === "string" && source.notes.trim().length > 0
+      ? source.notes.trim().slice(0, 400)
+      : null;
+
+  const hasSignal =
+    autoStartPositions.length > 0 ||
+    shootingRange !== null ||
+    cycleTimeRating !== null ||
+    reliabilityRating !== null ||
+    preferredRole !== null ||
+    notes !== null;
+  if (!hasSignal) return null;
+
+  return {
+    autoStartPositions,
+    shootingRange,
+    cycleTimeRating,
+    reliabilityRating,
+    preferredRole,
+    notes,
+  };
+}
+
+function quantile(sortedValues: number[], q: number): number {
+  if (sortedValues.length === 0) return 0;
+  if (sortedValues.length === 1) return sortedValues[0];
+  const index = (sortedValues.length - 1) * q;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sortedValues[lower];
+  const weight = index - lower;
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
+function normalizePickListRoles(content: PickListContent): PickListContent {
+  const sortedEpa = content.rankings
+    .map((team) => team.epa.total)
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+
+  if (sortedEpa.length < 4) return content;
+
+  // Slightly more permissive than strict median so "support" is not overused.
+  const scorerFloor = quantile(sortedEpa, 0.45);
+
+  const normalizedRankings = content.rankings.map((team) => {
+    if (
+      team.role === "support" &&
+      (team.epa.total >= scorerFloor || team.rank <= 8)
+    ) {
+      return { ...team, role: "scorer" as const };
+    }
+    return team;
+  });
+
+  return { ...content, rankings: normalizedRankings };
+}
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -47,7 +182,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { eventId } = await request.json();
+  const requestBody = (await request.json().catch(() => null)) as
+    | Record<string, unknown>
+    | null;
+  const eventId =
+    typeof requestBody?.eventId === "string" ? requestBody.eventId : null;
+  const teamProfile = normalizeTeamProfile(requestBody?.teamProfile);
   if (!eventId) {
     return NextResponse.json({ error: "eventId is required" }, { status: 400 });
   }
@@ -55,7 +195,7 @@ export async function POST(request: NextRequest) {
   // Get event
   const { data: event } = await supabase
     .from("events")
-    .select("id, name")
+    .select("id, name, year")
     .eq("id", eventId)
     .single();
 
@@ -158,18 +298,33 @@ export async function POST(request: NextRequest) {
 
   const orgTeamNumber = profile.organizations?.team_number ?? null;
 
+  const sortedEventEpas = statsData
+    .map((team) => team.epa)
+    .filter((value): value is number => typeof value === "number")
+    .sort((a, b) => a - b);
+  const roleGuidance = {
+    scorerEpaFloor: Number(quantile(sortedEventEpas, 0.45).toFixed(2)),
+    supportEpaCeiling: Number(quantile(sortedEventEpas, 0.25).toFixed(2)),
+  };
+
   const promptData = {
     yourTeamNumber: orgTeamNumber,
     eventName: event.name,
+    eventYear: event.year,
+    yourTeamProfile: teamProfile,
     teams: statsData,
+    roleGuidance,
   };
 
   const systemPrompt = `You are an expert FRC (FIRST Robotics Competition) alliance selection strategist. Generate a ranked pick list for alliance selection.
+
+${buildFrcGamePrompt(event.year)}
 
 Context: In FRC, the top 8 seeded teams each pick 2 alliance partners in a serpentine draft. Teams want partners whose strengths complement their own.
 
 You will receive:
 - The user's team number (they want picks that complement THEIR robot)
+- Optional profile data for the user's robot (starting positions, shooting range, cycle speed, reliability, preferred role, notes)
 - EPA (Expected Points Added) statistics from Statbotics for every team at the event
 - Scouting summaries per team: { count, avg_auto, avg_teleop, avg_endgame, avg_defense, avg_reliability, notes[] } or null if no data
 
@@ -207,7 +362,21 @@ Respond with ONLY valid JSON matching this exact structure:
 IMPORTANT:
 - Rank EVERY team (exclude only the user's own team)
 - overallScore should be 0-100, with top pick around 90-100 and worst around 10-20
+- Use professional, respectful language for every team.
+- Do not use demeaning, insulting, sarcastic, or mocking phrasing.
+- Frame negatives as strategic tradeoffs or constraints, not personal criticism.
+- Be candid and honest about performance gaps.
+- If a team is a weaker option, state that clearly in professional terms (e.g., "currently not among the most desirable picks").
+- Avoid comparative labels like "lower", "low-tier", "below average", or similar phrasing.
+- Prefer neutral alternatives such as "currently limited scoring output" or "not a top-priority pick for this role."
 - If no scouting data exists for a team, base analysis on EPA stats only
+- If yourTeamProfile is provided, use it to improve synergy judgments and pick reasoning.
+- If yourTeamProfile is missing/incomplete, proceed with available data and do not fabricate missing profile fields.
+- Role balance guidance:
+  - Use "scorer" for teams with mid/high offensive output; do NOT reserve it only for elite teams.
+  - If total EPA is at/above roleGuidance.scorerEpaFloor, default to "scorer" unless there is strong contrary evidence.
+  - Reserve "support" for clearly lower-output teams (typically near/below roleGuidance.supportEpaCeiling) or specialized non-scoring roles.
+  - If uncertain between "scorer" and "support", choose "scorer".
 - Do not list limited/missing scouting data as a team weakness.
 - Do not treat limited/missing scouting data as a risk factor.
 - When scouting is limited, use professional wording in scoutingSummary like: "Additional scouting entries would enable a more complete report."
@@ -230,8 +399,13 @@ IMPORTANT:
       ],
     });
 
-    const textBlock = message.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
+    const textOutput = message.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n")
+      .trim();
+
+    if (!textOutput) {
       return NextResponse.json(
         { error: "No text response from AI" },
         { status: 500 }
@@ -240,7 +414,7 @@ IMPORTANT:
 
     let parsedJson: unknown;
     try {
-      parsedJson = JSON.parse(textBlock.text);
+      parsedJson = parseAiJson(textOutput);
     } catch {
       return NextResponse.json(
         { error: "Failed to parse AI response as JSON" },
@@ -255,7 +429,7 @@ IMPORTANT:
         { status: 500 }
       );
     }
-    const pickListContent = parsed.data;
+    const pickListContent = normalizePickListRoles(parsed.data);
 
     // Upsert the pick list
     const { data: pickList, error: pickListError } = await supabase

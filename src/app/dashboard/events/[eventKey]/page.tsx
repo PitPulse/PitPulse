@@ -113,11 +113,19 @@ export default async function EventPage({
     const redWon = (match.red_score ?? 0) > (match.blue_score ?? 0);
     match.red_teams.forEach((team) => {
       const record = ensureRecord(team);
-      redWon ? record.wins++ : record.losses++;
+      if (redWon) {
+        record.wins++;
+      } else {
+        record.losses++;
+      }
     });
     match.blue_teams.forEach((team) => {
       const record = ensureRecord(team);
-      redWon ? record.losses++ : record.wins++;
+      if (redWon) {
+        record.losses++;
+      } else {
+        record.wins++;
+      }
     });
   }
 

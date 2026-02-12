@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import { checkRateLimit, retryAfterSeconds } from "@/lib/rate-limit";
+import { buildFrcGamePrompt } from "@/lib/frc-game-prompt";
 
 const STATBOTICS_BASE = "https://api.statbotics.io/v3";
 
@@ -399,6 +400,8 @@ export async function POST(request: NextRequest) {
 
   const systemPrompt = `You are ScoutAI Team Briefing for FRC.
 
+${buildFrcGamePrompt(event.year)}
+
 Generate a concise markdown briefing for a single team using ONLY the provided JSON data.
 
 Required output format:
@@ -417,6 +420,12 @@ Required output format:
 Rules:
 - Start with a 2-3 sentence narrative introduction before the bullet lists.
 - Prefer concrete numbers when available.
+- Use professional, respectful language throughout.
+- Do not use demeaning, insulting, sarcastic, or mocking phrasing.
+- Be candid and honest about performance limitations when data supports it.
+- If the team appears to be a weaker alliance option, state it professionally (e.g., "currently not among the most desirable picks").
+- Avoid comparative labels like "lower", "low-tier", "below average", or similar phrasing.
+- Prefer neutral alternatives such as "currently limited scoring output" or "not a top-priority pick for this role."
 - If data is missing, explicitly say "Data unavailable".
 - Do not frame limited scouting data as a team weakness or risk.
 - If scouting data is limited, use a professional note such as: "Additional scouting entries would enable a more complete report."

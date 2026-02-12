@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect } from "react";
 
 type ConfirmTone = "danger" | "warning" | "info";
 
@@ -46,30 +45,8 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
-  const [mounted, setMounted] = useState(false);
-  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    if (typeof document === "undefined") return;
-    if (!document.body) return;
-
-    const root = document.createElement("div");
-    root.dataset.scoutaiPortal = "confirm-dialog";
-    document.body.appendChild(root);
-    setPortalRoot(root);
-
-    return () => {
-      root.remove();
-    };
-  }, [mounted]);
-
-  useEffect(() => {
-    if (!open) return;
+    if (!open || typeof document === "undefined") return;
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
@@ -79,11 +56,11 @@ export function ConfirmDialog({
     return () => document.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
-  if (!open || !mounted || !portalRoot) return null;
+  if (!open) return null;
 
   const toneClass = toneStyles[tone];
 
-  return createPortal(
+  return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center px-4">
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
@@ -139,7 +116,6 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>,
-    portalRoot
+    </div>
   );
 }

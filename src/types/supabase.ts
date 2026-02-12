@@ -437,8 +437,10 @@ export type Database = {
       scouting_entries: {
         Row: {
           auto_mobility: boolean | null
+          auto_notes: string | null
           auto_score: number
           auto_start_position: string | null
+          cycle_time_rating: number | null
           created_at: string
           defense_rating: number
           endgame_score: number
@@ -449,14 +451,18 @@ export type Database = {
           org_id: string
           reliability_rating: number
           scouted_by: string
+          shooting_range: string | null
+          shooting_reliability: number | null
           team_number: number
           teleop_defense: boolean | null
           teleop_score: number
         }
         Insert: {
           auto_mobility?: boolean | null
+          auto_notes?: string | null
           auto_score?: number
           auto_start_position?: string | null
+          cycle_time_rating?: number | null
           created_at?: string
           defense_rating?: number
           endgame_score?: number
@@ -467,14 +473,18 @@ export type Database = {
           org_id: string
           reliability_rating?: number
           scouted_by: string
+          shooting_range?: string | null
+          shooting_reliability?: number | null
           team_number: number
           teleop_defense?: boolean | null
           teleop_score?: number
         }
         Update: {
           auto_mobility?: boolean | null
+          auto_notes?: string | null
           auto_score?: number
           auto_start_position?: string | null
+          cycle_time_rating?: number | null
           created_at?: string
           defense_rating?: number
           endgame_score?: number
@@ -485,6 +495,8 @@ export type Database = {
           org_id?: string
           reliability_rating?: number
           scouted_by?: string
+          shooting_range?: string | null
+          shooting_reliability?: number | null
           team_number?: number
           teleop_defense?: boolean | null
           teleop_score?: number
