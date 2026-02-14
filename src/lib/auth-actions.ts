@@ -33,7 +33,22 @@ function sanitizeTeamRoles(rawRoles: string[]) {
 
 function resolveSiteUrl() {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
+  const isProd = process.env.NODE_ENV === "production";
+  const explicitIsLocalhost =
+    !!explicit &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(explicit);
+
+  if (explicit && !(isProd && explicitIsLocalhost)) {
+    return explicit.replace(/\/+$/, "");
+  }
+
+  const vercelProdUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelProdUrl) {
+    return `https://${vercelProdUrl.replace(/^https?:\/\//, "").replace(
+      /\/+$/,
+      ""
+    )}`;
+  }
 
   const vercelUrl = process.env.VERCEL_URL?.trim();
   if (vercelUrl) return `https://${vercelUrl}`;

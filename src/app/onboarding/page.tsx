@@ -81,6 +81,19 @@ export default function OnboardingPage() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (step < totalSteps) {
+      const stepError = validateStep(step);
+      if (stepError) {
+        setError(stepError);
+        return;
+      }
+
+      setError(null);
+      setStep((prev) => Math.min(totalSteps, prev + 1));
+      return;
+    }
+
     const stepError = validateStep(totalSteps);
     if (stepError) {
       setError(stepError);

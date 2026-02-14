@@ -1,4 +1,4 @@
-const CACHE_NAME = "scoutai-v2";
+const CACHE_NAME = "pitpilot-v3";
 const STATIC_ASSETS = [
   "/",
   "/login",
@@ -69,23 +69,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigation requests: network-first, fallback to cache, then offline.html
+  // Navigation requests: network-first, fallback to offline.html.
+  // Do not cache HTML navigations to avoid serving stale app shells after deploys.
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
-          // Cache successful navigation responses for offline use
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
-          return response;
-        })
-        .catch(() =>
-          caches
-            .match(event.request)
-            .then((cached) => cached || caches.match("/offline.html"))
-        )
+        .catch(() => caches.match("/offline.html"))
     );
     return;
   }
