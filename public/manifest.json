@@ -4,8 +4,8 @@
   "description": "AI-powered FRC scouting and strategy platform",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#f9fafb",
-  "theme_color": "#2563eb",
+  "background_color": "#03070a",
+  "theme_color": "#03070a",
   "icons": [
     {
       "src": "/icon-192.png",

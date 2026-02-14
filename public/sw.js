@@ -1,4 +1,4 @@
-const CACHE_NAME = "pitpilot-v3";
+const CACHE_NAME = "pitpilot-v4";
 const STATIC_ASSETS = [
   "/",
   "/login",
@@ -6,8 +6,13 @@ const STATIC_ASSETS = [
   "/join",
   "/offline.html",
   "/manifest.json",
+  "/favicon.ico",
+  "/favicon-32x32.png",
+  "/favicon-16x16.png",
+  "/apple-touch-icon.png",
   "/icon-192.png",
   "/icon-512.png",
+  "/og-image.jpg",
 ];
 
 // Install: cache static shell + offline fallback
