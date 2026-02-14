@@ -20,7 +20,7 @@ import { Testimonials } from "./testimonials";
 import { createClient } from "@/lib/supabase/server";
 import { MotionSection } from "@/components/motion-section";
 import { SiteFooter } from "@/components/site-footer";
-import type { Database } from "@/types/supabase";
+import type { Database as SupabaseDatabase } from "@/types/supabase";
 
 type Feature = {
   title: string;
@@ -97,7 +97,7 @@ const STEPS: Step[] = [
 async function getStats() {
   noStore();
 
-  async function countFrom(client: SupabaseClient<Database>) {
+  async function countFrom(client: SupabaseClient<SupabaseDatabase>) {
     const [orgsRes, entriesRes, matchesRes] = await Promise.all([
       client.from("organizations").select("id", { count: "exact", head: true }),
       client.from("scouting_entries").select("id", { count: "exact", head: true }),
@@ -120,7 +120,7 @@ async function getStats() {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (supabaseUrl && serviceRoleKey) {
-      const admin = createAdminClient<Database>(supabaseUrl, serviceRoleKey, {
+      const admin = createAdminClient<SupabaseDatabase>(supabaseUrl, serviceRoleKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const globalStats = await countFrom(admin);
