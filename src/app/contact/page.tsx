@@ -4,8 +4,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { ContactForm } from "./contact-form";
 
 export const metadata: Metadata = {
-  title: "Contact | PitPulse",
-  description: "Get in touch with the PitPulse team.",
+  title: "Contact | PitPilot",
+  description: "Get in touch with the PitPilot team.",
 };
 
 export default function ContactPage() {

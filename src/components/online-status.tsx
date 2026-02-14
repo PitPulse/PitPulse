@@ -8,8 +8,8 @@ import {
   getPendingCount,
 } from "@/lib/offline-queue";
 
-const OFFLINE_BANNER_DISMISS_KEY = "pitpulse:offline-banner-dismissed";
-const ONLINE_BANNER_DISMISS_KEY = "pitpulse:online-sync-banner-dismissed";
+const OFFLINE_BANNER_DISMISS_KEY = "pitpilot:offline-banner-dismissed";
+const ONLINE_BANNER_DISMISS_KEY = "pitpilot:online-sync-banner-dismissed";
 const CONNECTIVITY_POLL_MS = 10000;
 
 function stripUnsupportedScoutingColumns<T extends Record<string, unknown>>(

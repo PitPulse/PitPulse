@@ -43,7 +43,7 @@ export function DashboardPreview() {
                 <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
               </div>
               <div className="ml-2 rounded-md border border-white/10 bg-black/35 px-3 py-1 font-mono text-[11px] text-slate-400">
-                pitpulse.app/dashboard/events/2026miket
+                pitpilot.app/dashboard/events/2026miket
               </div>
               <motion.span
                 className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-teal-300"

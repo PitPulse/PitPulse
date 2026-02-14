@@ -307,7 +307,7 @@ export default async function PickListPage({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-                      Ask PitPulse
+                      Ask PitPilot
                     </p>
                     <h2 className="text-lg font-bold text-white">
                       Strategy chat for this event

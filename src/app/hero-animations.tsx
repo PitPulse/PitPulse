@@ -20,7 +20,7 @@ export function HeroAnimations() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-300/70" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-300" />
           </span>
-          PitPulse Beta
+          PitPilot Beta
         </motion.div>
 
         <motion.h1

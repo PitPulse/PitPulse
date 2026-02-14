@@ -41,7 +41,7 @@ const FEATURES: Feature[] = [
   {
     title: "Unified event intelligence",
     description:
-      "We bring your PitPulse entries, TBA schedules/results, and Statbotics context together in one shared view.",
+      "We bring your PitPilot entries, TBA schedules/results, and Statbotics context together in one shared view.",
     icon: Database,
   },
   {
@@ -168,7 +168,7 @@ export default async function Home() {
                   <td className="px-6 py-4 text-slate-500">You still have to convert it into strategy under time pressure.</td>
                 </tr>
                 <tr className="transition-colors duration-300 hover:bg-white/[0.03]">
-                  <td className="px-6 py-4 font-semibold text-white">PitPulse</td>
+                  <td className="px-6 py-4 font-semibold text-white">PitPilot</td>
                   <td className="px-6 py-4 text-slate-300">We combine both + generate tactical pre-match guidance.</td>
                   <td className="px-6 py-4 text-slate-500">We don&apos;t replace your scouts; we amplify them.</td>
                 </tr>
@@ -241,7 +241,7 @@ export default async function Home() {
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-400 md:text-base">
               Free gives you everything you need to scout real events. Supporter gives your
-              team more AI headroom and helps us keep PitPulse fast and reliable for everyone.
+              team more AI headroom and helps us keep PitPilot fast and reliable for everyone.
             </p>
           </div>
 
@@ -303,7 +303,7 @@ export default async function Home() {
             Ready for cleaner decisions at your next event?
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-sm text-slate-400 md:text-base">
-            We built PitPulse to reduce match-day chaos so your drive team can
+            We built PitPilot to reduce match-day chaos so your drive team can
             act with confidence.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">

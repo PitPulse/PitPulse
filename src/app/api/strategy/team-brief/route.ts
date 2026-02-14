@@ -421,7 +421,7 @@ export async function POST(request: NextRequest) {
     },
   };
 
-  const systemPrompt = `You are PitPulse Team Briefing for FRC.
+  const systemPrompt = `You are PitPilot Team Briefing for FRC.
 
 ${buildFrcGamePrompt(event.year)}
 

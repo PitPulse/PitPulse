@@ -6,8 +6,8 @@ import { Navbar } from "@/components/navbar";
 import { AccountSettingsForm } from "./account-settings-form";
 
 export const metadata: Metadata = {
-  title: "Account Settings | PitPulse",
-  description: "Manage your PitPulse account profile and preferences.",
+  title: "Account Settings | PitPilot",
+  description: "Manage your PitPilot account profile and preferences.",
 };
 
 export default async function AccountSettingsPage() {

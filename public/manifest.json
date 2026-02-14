@@ -1,6 +1,6 @@
 {
-  "name": "PitPulse",
-  "short_name": "PitPulse",
+  "name": "PitPilot",
+  "short_name": "PitPilot",
   "description": "AI-powered FRC/FTC scouting and strategy platform",
   "start_url": "/dashboard",
   "display": "standalone",

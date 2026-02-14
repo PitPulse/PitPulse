@@ -6,8 +6,8 @@ import { Navbar } from "@/components/navbar";
 import { TeamSettingsForm } from "./settings-form";
 
 export const metadata: Metadata = {
-  title: "Settings | PitPulse",
-  description: "Manage your PitPulse team settings, join codes, and member roles.",
+  title: "Settings | PitPilot",
+  description: "Manage your PitPilot team settings, join codes, and member roles.",
 };
 
 export default async function SettingsPage() {

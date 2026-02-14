@@ -36,7 +36,7 @@ export function TestimonialsClient({ testimonials }: TestimonialsClientProps) {
             Trusted by teams in the stands
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400">
-            PitPulse is built from real event workflow pain points: speed, clarity,
+            PitPilot is built from real event workflow pain points: speed, clarity,
             and consistency under pressure.
           </p>
         </div>

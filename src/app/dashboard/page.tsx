@@ -13,7 +13,7 @@ import { getTeamAiPromptLimits } from "@/lib/platform-settings";
 import { UsageLimitMeter } from "./usage-limit-meter";
 
 export const metadata: Metadata = {
-  title: "Dashboard | PitPulse",
+  title: "Dashboard | PitPilot",
   description: "Your FRC scouting dashboard — manage events, view data, and access AI strategy tools.",
 };
 

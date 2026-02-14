@@ -9,7 +9,7 @@ export function SiteFooter({ className = "" }: { className?: string }) {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <Link href="/" className="font-outfit text-lg font-bold tracking-tight text-white">
-              Pit<span className="text-teal-400">Pulse</span>
+              Pit<span className="text-teal-400">Pilot</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-gray-400">
               AI-powered scouting and strategy platform built for the FIRST Robotics community.
@@ -93,7 +93,7 @@ export function SiteFooter({ className = "" }: { className?: string }) {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.04] pt-8 sm:flex-row">
           <p className="text-[11px] text-gray-500">
-            &copy; {new Date().getFullYear()} PitPulse. Built with Next.js &amp; Supabase.
+            &copy; {new Date().getFullYear()} PitPilot. Built with Next.js &amp; Supabase.
           </p>
           <div className="flex items-center gap-4">
             <a

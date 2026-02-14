@@ -10,7 +10,7 @@ import {
 } from "@/lib/scouting-report-actions";
 
 export const metadata: Metadata = {
-  title: "My Reports | PitPulse",
+  title: "My Reports | PitPilot",
   description: "Review every scouting report you have submitted.",
 };
 

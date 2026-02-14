@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 
 export const metadata: Metadata = {
-  title: "Sign In | PitPulse",
+  title: "Sign In | PitPilot",
   description: "Sign in or create an account to start scouting with AI-powered strategy tools.",
 };
 

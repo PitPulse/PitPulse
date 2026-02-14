@@ -121,7 +121,7 @@ export function StrategyChat({
 
       <div className="rounded-2xl dashboard-panel p-4 space-y-3">
         <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-          Ask PitPulse
+          Ask PitPilot
         </label>
         <textarea
           rows={3}

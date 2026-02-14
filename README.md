@@ -1,6 +1,6 @@
-# PitPulse
+# PitPilot
 
-PitPulse is an FRC scouting and strategy platform built with Next.js + Supabase.
+PitPilot is an FRC scouting and strategy platform built with Next.js + Supabase.
 
 ## Core Features
 

@@ -76,7 +76,7 @@ export function ContactForm() {
             type="text"
             required
             className="marketing-input mt-2 w-full rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none"
-            placeholder="What can PitPulse do for my team?"
+            placeholder="What can PitPilot do for my team?"
           />
         </div>
         <div>

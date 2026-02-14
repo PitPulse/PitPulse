@@ -140,7 +140,7 @@ export function AIBriefingPreview() {
                 {phase === "loading" ? (
                   <div className="w-full max-w-[92%] rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                     <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">
-                      PitPulse Assistant
+                      PitPilot Assistant
                     </p>
                     <div className="mt-2 flex items-center gap-2 text-sm text-teal-100">
                       Building scouting brief
@@ -155,7 +155,7 @@ export function AIBriefingPreview() {
                 ) : phase !== "reply" && phase !== "outro" ? (
                   <div className="w-full max-w-[92%] rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                     <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">
-                      PitPulse Assistant
+                      PitPilot Assistant
                     </p>
                     <p className="mt-2 text-sm text-slate-300">
                       Click AI Brief to generate a team summary.

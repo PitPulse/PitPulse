@@ -282,7 +282,7 @@ export function AdminPanel({
       >
         <div className="border-b border-white/10 px-5 py-4">
           <p className="text-base font-semibold text-white">
-            <span className="text-teal-400">PitPulse</span>
+            <span className="text-teal-400">PitPilot</span>
             <span className="mx-2 text-gray-500">/</span>
             <span className="text-gray-200">Admin</span>
           </p>
