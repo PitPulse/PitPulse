@@ -79,7 +79,7 @@ export function OverviewTab({
 
     const result = await updateTeamAiPromptLimits(formData);
     if ("error" in result) {
-      setStatus(result.error);
+      setStatus(result.error ?? "Failed to update AI prompt limits.");
       return;
     }
 
@@ -94,7 +94,7 @@ export function OverviewTab({
 
     const result = await resetAllTeamAiCooldowns();
     if ("error" in result) {
-      setStatus(result.error);
+      setStatus(result.error ?? "Failed to reset AI cooldowns.");
       return;
     }
 
