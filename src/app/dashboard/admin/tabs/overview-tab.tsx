@@ -78,7 +78,7 @@ export function OverviewTab({
     formData.set("supporterAiLimit", String(supporterLimit));
 
     const result = await updateTeamAiPromptLimits(formData);
-    if (result?.error) {
+    if ("error" in result) {
       setStatus(result.error);
       return;
     }
@@ -93,7 +93,7 @@ export function OverviewTab({
     }
 
     const result = await resetAllTeamAiCooldowns();
-    if (result?.error) {
+    if ("error" in result) {
       setStatus(result.error);
       return;
     }
