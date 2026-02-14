@@ -1,7 +1,7 @@
 {
   "name": "PitPilot",
   "short_name": "PitPilot",
-  "description": "AI-powered FRC/FTC scouting and strategy platform",
+  "description": "AI-powered FRC scouting and strategy platform",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#f9fafb",

@@ -89,7 +89,7 @@ export function UsageLimitMeter({
         <p className="text-gray-300">
           Current plan:{" "}
           <span className="font-semibold text-white">
-            {limit} per {windowHours}h
+            {limit} interactions per {windowHours}h
           </span>
         </p>
         <p className={isExhausted ? "font-medium text-amber-300" : "text-gray-400"}>

@@ -30,9 +30,9 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "PitPilot - AI-Powered FRC/FTC Scouting",
+  title: "PitPilot - AI-Powered FRC Scouting",
   description:
-    "AI-powered scouting and strategy platform for FRC and FTC robotics teams",
+    "AI-powered scouting and strategy platform for FRC robotics teams",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

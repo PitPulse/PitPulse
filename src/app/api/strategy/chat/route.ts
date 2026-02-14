@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     scouting: scoutingSummary.find((s) => s.teamNumber === team)?.summary ?? null,
   }));
 
-  const systemPrompt = `You are PitPilot Strategy Chat for FRC/FTC.
+  const systemPrompt = `You are PitPilot Strategy Chat for FRC.
 
 ${buildFrcGamePrompt(event.year)}
 
