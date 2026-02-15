@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import { updateOrganization } from "@/lib/auth-actions";
 import { removeMemberFromOrganization, updateMemberRole } from "@/lib/captain-actions";
 import { DeleteTeamButton } from "@/components/delete-team-button";
@@ -70,6 +71,7 @@ export function TeamSettingsForm({
   const [planLoading, setPlanLoading] = useState(false);
   const [planMessage, setPlanMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showCheckoutCelebration, setShowCheckoutCelebration] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const [kickLoadingMemberId, setKickLoadingMemberId] = useState<string | null>(null);
   const [kickCandidate, setKickCandidate] = useState<{
     id: string;
@@ -77,6 +79,10 @@ export function TeamSettingsForm({
   } | null>(null);
   const isGiftedSupporter = org.planTier === "gifted_supporter";
   const hasSupporterPlanAccess = hasSupporterAccess(org.planTier);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     let reloadTimer: number | null = null;
@@ -284,73 +290,128 @@ export function TeamSettingsForm({
     ? "Community-supported plan that helps keep PitPilot free for teams."
     : "Core plan for your team.";
 
-  return (
-    <div className="space-y-6">
-      <AnimatePresence>
-        {showCheckoutCelebration && (
-          <motion.div
-            key="checkout-celebration"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#020617]/80 px-4 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-cyan-300/25 bg-slate-950/95 p-8 text-center shadow-[0_0_100px_rgba(56,189,248,0.22)]"
-            >
+  const checkoutCelebrationOverlay =
+    isClient
+      ? createPortal(
+          <AnimatePresence>
+            {showCheckoutCelebration && (
               <motion.div
-                className="pointer-events-none absolute inset-0 rounded-3xl border border-cyan-300/25"
-                initial={{ scale: 0.85, opacity: 0.7 }}
-                animate={{ scale: 1.2, opacity: 0 }}
-                transition={{ duration: 1.5, ease: "easeOut", repeat: Infinity }}
-              />
-              <motion.div
-                className="pointer-events-none absolute inset-0 rounded-3xl border border-blue-300/20"
-                initial={{ scale: 0.85, opacity: 0 }}
-                animate={{ scale: 1.15, opacity: [0, 0.35, 0] }}
-                transition={{
-                  duration: 1.8,
-                  ease: "easeOut",
-                  repeat: Infinity,
-                  delay: 0.2,
-                }}
-              />
-
-              <motion.div
-                initial={{ rotate: -10, scale: 0.8 }}
-                animate={{ rotate: 0, scale: 1 }}
-                transition={{ type: "spring", stiffness: 260, damping: 18 }}
-                className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.6)]"
+                key="checkout-celebration"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="fixed left-0 top-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-[#010611]"
+                style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
               >
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                  <motion.path
-                    d="M5 13l4 4L19 7"
-                    stroke="white"
-                    strokeWidth="2.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.55, ease: "easeOut", delay: 0.2 }}
-                  />
-                </svg>
+                <motion.div
+                  aria-hidden
+                  className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(56,189,248,0.2),transparent_55%),radial-gradient(circle_at_15%_85%,rgba(20,184,166,0.24),transparent_45%),radial-gradient(circle_at_85%_75%,rgba(59,130,246,0.2),transparent_45%)]"
+                  animate={{ opacity: [0.7, 0.95, 0.8] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                />
+
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute -bottom-36 left-1/2 h-[92vh] w-[150vw] -translate-x-1/2 rounded-[50%] bg-gradient-to-t from-cyan-400/45 via-blue-500/30 to-transparent blur-3xl"
+                  initial={{ scaleY: 0.3, y: 220 }}
+                  animate={{ scaleY: [0.3, 1.2, 0.95], y: [220, -80, 0] }}
+                  transition={{ duration: 1.2, times: [0, 0.65, 1], ease: "easeOut" }}
+                />
+
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute -left-28 top-8 h-[58vh] w-[58vh] rounded-full bg-cyan-400/35 blur-3xl"
+                  animate={{
+                    x: [0, 60, -20, 0],
+                    y: [0, 80, 150, 0],
+                    scale: [0.9, 1.35, 1.05, 0.95],
+                    rotate: [0, 45, -20, 0],
+                  }}
+                  transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut" }}
+                />
+
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute right-[-8rem] top-[-6rem] h-[56vh] w-[56vh] rounded-full bg-blue-500/35 blur-3xl"
+                  animate={{
+                    x: [0, -70, 15, 0],
+                    y: [0, 60, 120, 0],
+                    scale: [1, 1.28, 1.08, 1],
+                    rotate: [0, -35, 18, 0],
+                  }}
+                  transition={{ duration: 4.1, repeat: Infinity, ease: "easeInOut", delay: 0.25 }}
+                />
+
+                <div className="absolute inset-0 flex items-center justify-center px-6">
+                  {[0, 1, 2].map((ring) => (
+                    <motion.div
+                      key={`splash-ring-${ring}`}
+                      aria-hidden
+                      className="absolute h-[28rem] w-[28rem] rounded-full border border-cyan-200/35"
+                      initial={{ scale: 0.2, opacity: 0 }}
+                      animate={{ scale: [0.2, 1.5], opacity: [0, 0.6, 0] }}
+                      transition={{
+                        duration: 1.6,
+                        ease: "easeOut",
+                        repeat: Infinity,
+                        delay: ring * 0.32,
+                      }}
+                    />
+                  ))}
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 26, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.97 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                    className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-cyan-300/35 bg-slate-950/55 px-7 py-9 text-center shadow-[0_0_160px_rgba(56,189,248,0.24)] backdrop-blur-xl"
+                  >
+                    <motion.div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-cyan-300/25 to-transparent"
+                      animate={{ opacity: [0.25, 0.55, 0.3] }}
+                      transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                    />
+
+                    <motion.div
+                      initial={{ rotate: -18, scale: 0.78 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      transition={{ type: "spring", stiffness: 270, damping: 18 }}
+                      className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300 via-teal-300 to-blue-500 shadow-[0_0_65px_rgba(56,189,248,0.68)]"
+                    >
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                        <motion.path
+                          d="M5 13l4 4L19 7"
+                          stroke="#021121"
+                          strokeWidth="3.1"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 0.6, ease: "easeOut", delay: 0.25 }}
+                        />
+                      </svg>
+                    </motion.div>
+
+                    <h4 className="mt-5 text-2xl font-semibold text-white">Payment Confirmed</h4>
+                    <p className="mt-2 text-sm text-cyan-100/95">
+                      Supporter unlock is processing. Reloading your team settings...
+                    </p>
+                  </motion.div>
+                </div>
               </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )
+      : null;
 
-              <h4 className="mt-5 text-2xl font-semibold text-white">Payment Confirmed</h4>
-              <p className="mt-2 text-sm text-cyan-100/90">
-                Supporter unlock is processing. Reloading your team settings...
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  return (
+    <>
+      {checkoutCelebrationOverlay}
+      <div className="space-y-6">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-xs uppercase tracking-widest text-gray-400">Team</p>
           <p className="mt-1 text-lg font-semibold text-white">
@@ -727,6 +788,7 @@ export function TeamSettingsForm({
           setKickCandidate(null);
         }}
       />
-    </div>
+      </div>
+    </>
   );
 }
