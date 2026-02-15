@@ -306,7 +306,7 @@ export default async function DashboardPage() {
               <div className="mt-3 rounded-xl border border-white/10 px-3 py-3 text-xs text-gray-400 dashboard-panel">
                 <p className="font-semibold text-gray-300">Upgrade to Supporter</p>
                 <p className="mt-1">
-                  Supporter helps keep PitPilot sustainable while we continue offering free access
+                  Being a supporter helps keep PitPilot sustainable while we continue offering free access
                   for teams across the community.
                 </p>
                 <div className="mt-3">
