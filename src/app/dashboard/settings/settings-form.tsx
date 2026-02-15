@@ -407,7 +407,7 @@ export function TeamSettingsForm({
                   </div>
                 ) : (
                   <p className="mt-2 text-xs text-gray-400">
-                    No Stripe subscription has been created for this team yet.
+                    No subscription has been created for this team yet.
                   </p>
                 )}
 
