@@ -40,6 +40,13 @@ export interface StripeSubscription {
   cancel_at_period_end?: boolean;
   cancel_at?: number | null;
   metadata?: Record<string, string>;
+  items?: {
+    data?: Array<{
+      id: string;
+      current_period_start?: number | null;
+      current_period_end?: number | null;
+    }>;
+  };
 }
 
 export interface StripeInvoice {
@@ -50,6 +57,8 @@ export interface StripeInvoice {
   amount_due: number;
   created: number;
   hosted_invoice_url: string | null;
+  period_start?: number | null;
+  period_end?: number | null;
 }
 
 interface StripeListResponse<T> {
@@ -291,19 +300,50 @@ export async function getOrgBillingOverview(
       }
     }
 
+    const itemPeriods = (subscription.items?.data ?? []).reduce(
+      (acc, item) => {
+        const itemStart = item.current_period_start ?? null;
+        const itemEnd = item.current_period_end ?? null;
+
+        if (itemStart !== null) {
+          acc.start =
+            acc.start === null ? itemStart : Math.min(acc.start, itemStart);
+        }
+        if (itemEnd !== null) {
+          acc.end = acc.end === null ? itemEnd : Math.max(acc.end, itemEnd);
+        }
+
+        return acc;
+      },
+      { start: null as number | null, end: null as number | null }
+    );
+
+    const resolvedCurrentPeriodStart =
+      subscription.current_period_start ?? itemPeriods.start;
+    const resolvedCurrentPeriodEnd =
+      subscription.current_period_end ?? itemPeriods.end;
+
     const invoices = await listStripeInvoices({
       customerId: subscription.customer,
       subscriptionId: subscription.id,
       limit: 6,
     });
 
+    const latestInvoiceWithPeriod =
+      invoices.find(
+        (invoice) =>
+          invoice.period_start != null && invoice.period_end != null
+      ) ?? null;
+
     return {
       stripeConfigured: true,
       subscription: {
         id: subscription.id,
         status: subscription.status,
-        currentPeriodStart: subscription.current_period_start ?? null,
-        currentPeriodEnd: subscription.current_period_end ?? null,
+        currentPeriodStart:
+          resolvedCurrentPeriodStart ?? latestInvoiceWithPeriod?.period_start ?? null,
+        currentPeriodEnd:
+          resolvedCurrentPeriodEnd ?? latestInvoiceWithPeriod?.period_end ?? null,
         cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
         cancelAt: subscription.cancel_at ?? null,
         customerId: subscription.customer,
