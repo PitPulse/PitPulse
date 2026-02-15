@@ -250,7 +250,7 @@ export function TeamSettingsForm({
     ? "Supporter"
     : "Free";
   const planDescription = isGiftedSupporter
-    ? "Complimentary Supporter access gifted by the developer for early testing support."
+    ? "Enjoy complimentary Supporter access as a thank-you from our team for helping us test PitPilot early."
     : hasSupporterPlanAccess
     ? "Community-supported plan that helps keep PitPilot free for teams."
     : "Core plan for your team.";
@@ -536,8 +536,8 @@ export function TeamSettingsForm({
             <div className="rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-4">
               <p className="text-sm font-semibold text-emerald-200">Gifted Supporter access</p>
               <p className="mt-1 text-xs text-emerald-100/90">
-                This team was gifted complimentary Supporter access by the developer as thanks for
-                helping with early testing. No billing setup is required.
+                Enjoy complimentary Supporter access as a thank-you from our team for helping us
+                test PitPilot early. No billing setup is required.
               </p>
             </div>
           )}
@@ -545,7 +545,7 @@ export function TeamSettingsForm({
           {isCaptain ? (
             isGiftedSupporter ? (
               <p className="text-xs text-emerald-200/95">
-                Gifted teams already have Supporter access. Thank you for helping test PitPilot.
+                Thanks for helping us test PitPilot early.
               </p>
             ) : (
               <div className="flex flex-wrap items-center gap-2">

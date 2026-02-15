@@ -47,6 +47,16 @@ export default async function DashboardPage() {
   const org = profile.organizations;
   const hasSupporterPlanAccess = hasSupporterAccess(org?.plan_tier);
   const isGiftedSupporter = org?.plan_tier === "gifted_supporter";
+  const planTagLabel = isGiftedSupporter
+    ? "Gifted Supporter"
+    : hasSupporterPlanAccess
+    ? "Supporter"
+    : "Free";
+  const planTagClass = isGiftedSupporter
+    ? "bg-blue-500/15 text-blue-300 ring-blue-500/35"
+    : hasSupporterPlanAccess
+    ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+    : "bg-white/10 text-gray-300 ring-white/20";
   const teamAiPromptLimits = await getTeamAiPromptLimits(supabase);
   const currentPlanAiLimit = teamAiPromptLimits[hasSupporterPlanAccess ? "supporter" : "free"];
   const aiUsage = await peekRateLimit(
@@ -156,12 +166,12 @@ export default async function DashboardPage() {
                 <h2 className="text-2xl font-bold text-white">
                   {org?.team_number ? `Team ${org.team_number}` : org?.name}
                 </h2>
-                {hasSupporterPlanAccess && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
-                    {isGiftedSupporter ? "Gifted Supporter" : "Supporter"}
-                  </span>
-                )}
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${planTagClass}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+                  {planTagLabel}
+                </span>
               </div>
               {org?.team_number && org?.name && (
                 <p className="mt-1 text-sm text-gray-300">{org.name}</p>
@@ -180,7 +190,7 @@ export default async function DashboardPage() {
               {hasSupporterPlanAccess && (
                 <p className="mt-3 text-xs font-medium text-green-400">
                   {isGiftedSupporter
-                    ? "Gifted Supporter is active. Thanks for helping test PitPilot early."
+                    ? "Thanks for helping us test PitPilot early."
                     : "Thank you for supporting us."}
                 </p>
               )}
@@ -288,7 +298,7 @@ export default async function DashboardPage() {
                 </p>
                 <p className="mt-1">
                   {isGiftedSupporter
-                    ? "This team has complimentary Supporter access from the developer as thanks for early testing help."
+                    ? "Enjoy complimentary Supporter access as a thank-you from our team for helping us test PitPilot early."
                     : "Thank you for supporting PitPilot and helping keep the platform free for the wider FRC community."}
                 </p>
               </div>
