@@ -38,8 +38,13 @@ export async function updateSession(request: NextRequest) {
   const publicPaths = [
     "/login",
     "/signup",
+    "/privacy",
+    "/contact",
     "/auth/callback",
     "/api/stripe/webhook",
+    "/sitemap.xml",
+    "/robots.txt",
+    "/manifest.json",
   ];
   const isPublicPath = publicPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
