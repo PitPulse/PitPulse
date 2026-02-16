@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createOrganization, joinOrganization } from "@/lib/auth-actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export default function JoinPageClient({
   prefillCode = "",
@@ -19,6 +21,10 @@ export default function JoinPageClient({
     taken: boolean;
     loading: boolean;
   }>({ name: null, taken: false, loading: false });
+  const [pendingCreate, setPendingCreate] = useState<{
+    teamNumber: string;
+    teamName: string | null;
+  } | null>(null);
 
   const lookupTeam = useCallback(async (number: string) => {
     if (number.length < 1) {
@@ -58,6 +64,34 @@ export default function JoinPageClient({
       // would still see org_id as null)
       window.location.href = "/dashboard";
     }
+  }
+
+  function handleCreateSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (loading) return;
+
+    const formData = new FormData(e.currentTarget);
+    const teamNumberRaw = (formData.get("teamNumber") as string | null) ?? "";
+    const teamNumber = teamNumberRaw.replace(/[^0-9]/g, "").trim();
+
+    if (!teamNumber) {
+      setError("Please enter your FRC team number.");
+      return;
+    }
+
+    setPendingCreate({
+      teamNumber,
+      teamName: teamLookup.name,
+    });
+  }
+
+  async function confirmCreateTeam() {
+    if (!pendingCreate) return;
+
+    const formData = new FormData();
+    formData.set("teamNumber", pendingCreate.teamNumber);
+    setPendingCreate(null);
+    await handleCreate(formData);
   }
 
   async function handleJoin(formData: FormData) {
@@ -172,7 +206,7 @@ export default function JoinPageClient({
               transition={{ duration: 0.2 }}
               className="marketing-card rounded-xl p-8"
             >
-              <form action={handleCreate} className="space-y-5">
+              <form onSubmit={handleCreateSubmit} className="space-y-5">
               <div>
                 <label htmlFor="teamNumber" className="block text-sm font-medium text-gray-300">
                   FRC Team Number
@@ -207,9 +241,18 @@ export default function JoinPageClient({
                   </p>
                 )}
                 {!teamLookup.loading && teamLookup.taken && (
-                  <p className="mt-1.5 text-xs text-red-400">
-                    This team number is already registered by another organization.
-                  </p>
+                  <div className="mt-1.5 space-y-1">
+                    <p className="text-xs text-red-400">
+                      This team number is already registered by another organization.
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      If this is your team and you need help,{" "}
+                      <Link href="/contact" className="font-medium text-cyan-300 underline underline-offset-2 hover:text-cyan-200">
+                        contact us
+                      </Link>
+                      .
+                    </p>
+                  </div>
                 )}
                 {!teamLookup.loading && !teamLookup.taken && teamLookup.name && (
                   <p className="mt-1.5 text-xs text-green-400">
@@ -291,6 +334,42 @@ export default function JoinPageClient({
           )}
         </AnimatePresence>
       </motion.div>
+
+      <ConfirmDialog
+        open={!!pendingCreate}
+        title="Confirm Team Registration"
+        description={
+          pendingCreate
+            ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200/90">
+                      You are registering
+                    </p>
+                    <p className="mt-1 text-base font-semibold text-white">
+                      Team {pendingCreate.teamNumber}
+                    </p>
+                    {pendingCreate.teamName && (
+                      <p className="mt-0.5 text-xs text-cyan-100/90">{pendingCreate.teamName}</p>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-200">
+                    Double-check this is your official FRC team number before continuing.
+                  </p>
+                </div>
+              )
+            : undefined
+        }
+        confirmLabel={loading ? "Registering..." : "Yes, register team"}
+        cancelLabel="Go back"
+        tone="warning"
+        confirmDisabled={loading}
+        onConfirm={() => void confirmCreateTeam()}
+        onClose={() => {
+          if (loading) return;
+          setPendingCreate(null);
+        }}
+      />
     </div>
   );
 }
