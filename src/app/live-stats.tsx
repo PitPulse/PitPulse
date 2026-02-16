@@ -6,6 +6,7 @@ interface StatsProps {
   teams: number;
   entries: number;
   matches: number;
+  scouts: number;
 }
 
 function AnimatedCounter({ target, label, suffix }: { target: number; label: string; suffix?: string }) {
@@ -49,14 +50,15 @@ function AnimatedCounter({ target, label, suffix }: { target: number; label: str
   );
 }
 
-export function LiveStats({ teams, entries, matches }: StatsProps) {
+export function LiveStats({ teams, entries, matches, scouts }: StatsProps) {
   return (
     <section className="relative py-20">
       <div className="mx-auto max-w-4xl px-4">
-        <div className="grid grid-cols-3 divide-x divide-white/[0.06]">
+        <div className="grid grid-cols-2 divide-white/[0.06] md:grid-cols-4 md:divide-x">
           <AnimatedCounter target={teams} label="Teams" suffix="+" />
           <AnimatedCounter target={entries} label="Scouting Entries" suffix="+" />
           <AnimatedCounter target={matches} label="Matches Tracked" suffix="+" />
+          <AnimatedCounter target={scouts} label="Scouts" suffix="+" />
         </div>
       </div>
     </section>

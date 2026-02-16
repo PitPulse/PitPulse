@@ -98,13 +98,14 @@ async function getStats() {
   noStore();
 
   async function countFrom(client: SupabaseClient<SupabaseDatabase>) {
-    const [orgsRes, entriesRes, matchesRes] = await Promise.all([
+    const [orgsRes, entriesRes, matchesRes, scoutsRes] = await Promise.all([
       client.from("organizations").select("id", { count: "exact", head: true }),
       client.from("scouting_entries").select("id", { count: "exact", head: true }),
       client.from("matches").select("id", { count: "exact", head: true }),
+      client.from("profiles").select("id", { count: "exact", head: true }),
     ]);
 
-    if (orgsRes.error || entriesRes.error || matchesRes.error) {
+    if (orgsRes.error || entriesRes.error || matchesRes.error || scoutsRes.error) {
       return null;
     }
 
@@ -112,6 +113,7 @@ async function getStats() {
       teams: orgsRes.count ?? 0,
       entries: entriesRes.count ?? 0,
       matches: matchesRes.count ?? 0,
+      scouts: scoutsRes.count ?? 0,
     };
   }
 
@@ -135,9 +137,9 @@ async function getStats() {
       return scopedStats;
     }
 
-    return { teams: 0, entries: 0, matches: 0 };
+    return { teams: 0, entries: 0, matches: 0, scouts: 0 };
   } catch {
-    return { teams: 0, entries: 0, matches: 0 };
+    return { teams: 0, entries: 0, matches: 0, scouts: 0 };
   }
 }
 
@@ -163,7 +165,12 @@ export default async function Home() {
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#03070a] to-transparent" />
       </section>
 
-      <LiveStats teams={stats.teams} entries={stats.entries} matches={stats.matches} />
+      <LiveStats
+        teams={stats.teams}
+        entries={stats.entries}
+        matches={stats.matches}
+        scouts={stats.scouts}
+      />
 
       <MotionSection id="problem" className="relative py-24">
         <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
