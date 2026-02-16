@@ -333,7 +333,7 @@ function buildFallbackBrief(
       ): item is {
         teamNumber: number;
         alliance: AllianceColor;
-        priority: PriorityLevel;
+        priority: "high" | "medium";
         reason: string;
         focus: string;
       } => item !== null
