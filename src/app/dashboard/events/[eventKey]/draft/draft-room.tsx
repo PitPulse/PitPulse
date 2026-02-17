@@ -935,7 +935,17 @@ export function DraftRoom({
                   <h2 className="text-sm font-semibold text-white">Best Available</h2>
                 </div>
               </div>
-              <span className="text-xs text-gray-500">{bestAvailable.length} teams</span>
+              <div className="flex items-center gap-2">
+                {pickList && (
+                  <GeneratePickListButton
+                    eventId={eventId}
+                    label="Regenerate"
+                    showDataHint={false}
+                    requireTeamProfile
+                  />
+                )}
+                <span className="text-xs text-gray-500">{bestAvailable.length} teams</span>
+              </div>
             </div>
 
             {!pickList && (
