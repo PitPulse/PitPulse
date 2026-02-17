@@ -42,7 +42,8 @@ function parseAiJson(text: string): unknown {
 
 type TeamProfile = {
   autoStartPositions: Array<"left" | "center" | "right">;
-  shootingRange: "close" | "mid" | "long" | null;
+  shootingRanges: Array<"close" | "mid" | "long">;
+  intakeAbilities: Array<"floor" | "station" | "chute" | "shelf">;
   cycleTimeRating: number | null;
   reliabilityRating: number | null;
   preferredRole: "scorer" | "defender" | "support" | "versatile" | null;
@@ -65,12 +66,31 @@ function normalizeTeamProfile(value: unknown): TeamProfile | null {
       )
     : [];
 
-  const shootingRange =
+  const legacyShootingRange =
     source.shootingRange === "close" ||
     source.shootingRange === "mid" ||
     source.shootingRange === "long"
       ? source.shootingRange
       : null;
+
+  const shootingRanges = Array.isArray(source.shootingRanges)
+    ? source.shootingRanges.filter(
+        (item): item is "close" | "mid" | "long" =>
+          item === "close" || item === "mid" || item === "long"
+      )
+    : legacyShootingRange
+    ? [legacyShootingRange]
+    : [];
+
+  const intakeAbilities = Array.isArray(source.intakeAbilities)
+    ? source.intakeAbilities.filter(
+        (item): item is "floor" | "station" | "chute" | "shelf" =>
+          item === "floor" ||
+          item === "station" ||
+          item === "chute" ||
+          item === "shelf"
+      )
+    : [];
 
   const cycleTimeRaw = Number(source.cycleTimeRating);
   const reliabilityRaw = Number(source.reliabilityRating);
@@ -100,7 +120,8 @@ function normalizeTeamProfile(value: unknown): TeamProfile | null {
 
   const hasSignal =
     autoStartPositions.length > 0 ||
-    shootingRange !== null ||
+    shootingRanges.length > 0 ||
+    intakeAbilities.length > 0 ||
     cycleTimeRating !== null ||
     reliabilityRating !== null ||
     preferredRole !== null ||
@@ -109,7 +130,8 @@ function normalizeTeamProfile(value: unknown): TeamProfile | null {
 
   return {
     autoStartPositions,
-    shootingRange,
+    shootingRanges,
+    intakeAbilities,
     cycleTimeRating,
     reliabilityRating,
     preferredRole,
@@ -349,7 +371,7 @@ Context: In FRC, the top 8 seeded teams each pick 2 alliance partners in a serpe
 
 You will receive:
 - The user's team number (they want picks that complement THEIR robot)
-- Optional profile data for the user's robot (starting positions, shooting range, cycle speed, reliability, preferred role, notes)
+- Optional profile data for the user's robot (starting positions, shooting ranges, intake abilities, cycle speed, reliability, preferred role, notes)
 - EPA (Expected Points Added) statistics from Statbotics for every team at the event
 - Scouting summaries per team: { count, avg_auto, avg_teleop, avg_endgame, avg_defense, avg_reliability, notes[] } or null if no data
 
@@ -396,6 +418,7 @@ IMPORTANT:
 - Prefer neutral alternatives such as "currently limited scoring output" or "not a top-priority pick for this role."
 - If no scouting data exists for a team, base analysis on EPA stats only
 - If yourTeamProfile is provided, use it to improve synergy judgments and pick reasoning.
+- If yourTeamProfile includes multiple shooting ranges or intake abilities, treat that as flexibility when evaluating fit.
 - If yourTeamProfile is missing/incomplete, proceed with available data and do not fabricate missing profile fields.
 - Role balance guidance:
   - Use "scorer" for teams with mid/high offensive output; do NOT reserve it only for elite teams.
