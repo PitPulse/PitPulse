@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useRef, useCallback } from "react";
 
 interface CounterButtonProps {
   label: string;
@@ -17,6 +17,26 @@ export const CounterButton = memo(function CounterButton({
   min = 0,
   max = 99,
 }: CounterButtonProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const commitDraft = useCallback(() => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (!trimmed) return; // keep current value
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed)) return;
+    onChange(Math.max(min, Math.min(max, parsed)));
+  }, [draft, min, max, onChange]);
+
+  const startEditing = useCallback(() => {
+    setDraft(String(value));
+    setEditing(true);
+    // Focus after React renders the input
+    requestAnimationFrame(() => inputRef.current?.select());
+  }, [value]);
+
   return (
     <div className="flex flex-col items-center gap-1.5">
       <span
@@ -39,14 +59,42 @@ export const CounterButton = memo(function CounterButton({
         >
           &minus;
         </button>
-        <span
-          role="status"
-          aria-live="polite"
-          aria-label={`${label}: ${value}`}
-          className="w-8 text-center text-xl font-bold text-white"
-        >
-          {value}
-        </span>
+
+        {editing ? (
+          <input
+            ref={inputRef}
+            type="number"
+            inputMode="numeric"
+            min={min}
+            max={max}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitDraft();
+              } else if (e.key === "Escape") {
+                setEditing(false);
+              }
+            }}
+            className="h-10 w-14 rounded-lg border border-cyan-400/40 bg-white/10 text-center text-xl font-bold text-white outline-none ring-1 ring-cyan-400/30 focus:border-cyan-400/60 focus:ring-cyan-400/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            aria-label={`Type ${label} value`}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={startEditing}
+            role="status"
+            aria-live="polite"
+            aria-label={`${label}: ${value} — tap to type`}
+            className="flex h-10 w-14 cursor-text items-center justify-center rounded-lg border border-transparent text-xl font-bold text-white transition hover:border-white/20 hover:bg-white/5 active:bg-white/10"
+            title="Tap to type a value"
+          >
+            {value}
+          </button>
+        )}
+
         <button
           type="button"
           aria-label={`Increase ${label}`}

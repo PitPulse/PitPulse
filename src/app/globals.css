@@ -415,6 +415,17 @@ a[aria-disabled="true"] {
 .dashboard-action-alt { background: var(--dash-action-alt); }
 .dashboard-action-alt:hover { background: var(--dash-action-alt-hover); }
 
+.dashboard-action-ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--dash-accent) 32%, transparent);
+  color: color-mix(in srgb, var(--dash-accent) 88%, white 12%);
+}
+.dashboard-action-ghost:hover {
+  background: color-mix(in srgb, var(--dash-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--dash-accent) 52%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+}
+
 .dashboard-action-holo {
   position: relative;
   overflow: hidden;

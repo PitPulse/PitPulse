@@ -143,6 +143,22 @@ export default async function AnalyticsPage({
     ])
   );
 
+  // Safely parse Json fields from Supabase
+  function toStringArray(val: unknown): string[] {
+    if (Array.isArray(val)) return val.filter((v): v is string => typeof v === "string");
+    return [];
+  }
+  function toBoolRecord(val: unknown): Record<string, boolean> | null {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const out: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+        if (typeof v === "boolean") out[k] = v;
+      }
+      return Object.keys(out).length > 0 ? out : null;
+    }
+    return null;
+  }
+
   // Build data for client
   const scoutingRows = scoutingEntries.map((entry) => {
     const match = matchMap.get(entry.match_id);
@@ -152,10 +168,18 @@ export default async function AnalyticsPage({
       teamName: teamNameMap.get(entry.team_number) ?? "Unknown",
       scoutedBy: entry.profiles?.display_name ?? "Unknown",
       autoScore: entry.auto_score,
+      autoStartPosition: entry.auto_start_position ?? null,
+      autoNotes: entry.auto_notes || "",
       teleopScore: entry.teleop_score,
+      intakeMethods: toStringArray(entry.intake_methods),
       endgameScore: entry.endgame_score,
+      climbLevels: toStringArray(entry.climb_levels),
+      shootingRanges: toStringArray(entry.shooting_ranges),
+      shootingReliability: entry.shooting_reliability ?? null,
+      cycleTimeRating: entry.cycle_time_rating ?? null,
       defenseRating: entry.defense_rating,
       reliabilityRating: entry.reliability_rating,
+      abilityAnswers: toBoolRecord(entry.ability_answers),
       notes: entry.notes || "",
     };
   });

@@ -5,10 +5,18 @@ interface ScoutingRow {
   teamNumber: number;
   scoutedBy: string;
   autoScore: number;
+  autoStartPosition: string | null;
+  autoNotes: string;
   teleopScore: number;
+  intakeMethods: string[];
   endgameScore: number;
+  climbLevels: string[];
+  shootingRanges: string[];
+  shootingReliability: number | null;
+  cycleTimeRating: number | null;
   defenseRating: number;
   reliabilityRating: number;
+  abilityAnswers: Record<string, boolean> | null;
   notes: string;
 }
 
@@ -26,6 +34,18 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatList(items: string[]): string {
+  if (items.length === 0) return "—";
+  return items.join(", ");
+}
+
+function formatAbilities(answers: Record<string, boolean> | null): string {
+  if (!answers || Object.keys(answers).length === 0) return "—";
+  return Object.entries(answers)
+    .map(([q, v]) => `${v ? "Yes" : "No"}: ${q}`)
+    .join("; ");
+}
+
 export function PrintScoutingButton({
   eventTitle,
   rows,
@@ -40,11 +60,19 @@ export function PrintScoutingButton({
             <td>${r.teamNumber}</td>
             <td>${escapeHtml(r.scoutedBy)}</td>
             <td>${r.autoScore}</td>
+            <td>${escapeHtml(r.autoStartPosition ?? "—")}</td>
             <td>${r.teleopScore}</td>
+            <td>${escapeHtml(formatList(r.intakeMethods))}</td>
             <td>${r.endgameScore}</td>
+            <td>${escapeHtml(formatList(r.climbLevels))}</td>
             <td>${r.autoScore + r.teleopScore + r.endgameScore}</td>
+            <td>${escapeHtml(formatList(r.shootingRanges))}</td>
+            <td>${r.shootingReliability ?? "—"}/5</td>
+            <td>${r.cycleTimeRating ?? "—"}/5</td>
             <td>${r.defenseRating}/5</td>
             <td>${r.reliabilityRating}/5</td>
+            <td style="max-width:180px;word-wrap:break-word;font-size:9px">${escapeHtml(formatAbilities(r.abilityAnswers))}</td>
+            <td style="max-width:200px;word-wrap:break-word">${escapeHtml(r.autoNotes) || "—"}</td>
             <td style="max-width:200px;word-wrap:break-word">${escapeHtml(r.notes) || "—"}</td>
           </tr>`
       )
@@ -57,17 +85,18 @@ export function PrintScoutingButton({
   <title>${safeTitle} — Scouting Data</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; color: #1a1a1a; padding: 16px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; color: #1a1a1a; padding: 16px; }
     h1 { font-size: 16px; margin-bottom: 4px; }
     .meta { color: #666; font-size: 10px; margin-bottom: 12px; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; }
-    th { background: #f5f5f5; font-weight: 600; font-size: 10px; text-transform: uppercase; }
+    th, td { border: 1px solid #ddd; padding: 3px 5px; text-align: left; }
+    th { background: #f5f5f5; font-weight: 600; font-size: 9px; text-transform: uppercase; }
     tr:nth-child(even) { background: #fafafa; }
     @media print {
-      body { padding: 0; }
+      body { padding: 0; font-size: 9px; }
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; }
+      @page { size: landscape; margin: 0.5cm; }
     }
   </style>
 </head>
@@ -81,11 +110,19 @@ export function PrintScoutingButton({
         <th>Team</th>
         <th>Scout</th>
         <th>Auto</th>
+        <th>Start</th>
         <th>Teleop</th>
+        <th>Intake</th>
         <th>Endgame</th>
+        <th>Climb</th>
         <th>Total</th>
+        <th>Shooting</th>
+        <th>Shot Rel</th>
+        <th>Cycle</th>
         <th>Defense</th>
-        <th>Reliability</th>
+        <th>Reliable</th>
+        <th>Abilities</th>
+        <th>Auto Notes</th>
         <th>Notes</th>
       </tr>
     </thead>

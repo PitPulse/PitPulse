@@ -12,10 +12,18 @@ interface ScoutingRow {
   teamName: string;
   scoutedBy: string;
   autoScore: number;
+  autoStartPosition: string | null;
+  autoNotes: string;
   teleopScore: number;
+  intakeMethods: string[];
   endgameScore: number;
+  climbLevels: string[];
+  shootingRanges: string[];
+  shootingReliability: number | null;
+  cycleTimeRating: number | null;
   defenseRating: number;
   reliabilityRating: number;
+  abilityAnswers: Record<string, boolean> | null;
   notes: string;
 }
 
@@ -88,11 +96,19 @@ export function AnalyticsDashboard({
     "Team Name",
     "Scout",
     "Auto",
+    "Start Pos",
+    "Auto Notes",
     "Teleop",
+    "Intake",
     "Endgame",
+    "Climb",
     "Total",
+    "Shooting Range",
+    "Shot Reliability",
+    "Cycle Time",
     "Defense",
     "Reliability",
+    "Abilities",
     "Notes",
   ];
 
@@ -102,11 +118,21 @@ export function AnalyticsDashboard({
     r.teamName,
     r.scoutedBy,
     r.autoScore,
+    r.autoStartPosition ?? "",
+    r.autoNotes,
     r.teleopScore,
+    r.intakeMethods.join(", "),
     r.endgameScore,
+    r.climbLevels.join(", "),
     r.autoScore + r.teleopScore + r.endgameScore,
+    r.shootingRanges.join(", "),
+    r.shootingReliability ?? "",
+    r.cycleTimeRating ?? "",
     r.defenseRating,
     r.reliabilityRating,
+    r.abilityAnswers
+      ? Object.entries(r.abilityAnswers).map(([q, v]) => `${v ? "Y" : "N"}: ${q}`).join("; ")
+      : "",
     r.notes,
   ]);
 

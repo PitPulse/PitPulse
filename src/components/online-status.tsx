@@ -345,6 +345,11 @@ export function OnlineStatus() {
   if (isOnline && pendingCount === 0 && syncErrors === 0) return null;
   if (isOnline && onlineHidden) return null;
 
+  // Hide offline banner when nothing is pending/errored, unless user has
+  // previously synced this session (then they'll want the stale-data hint).
+  if (!isOnline && pendingCount === 0 && syncErrors === 0 && !lastSyncTime)
+    return null;
+
   // Hidden when user dismissed offline banner
   if (!isOnline && offlineHidden) return null;
 
