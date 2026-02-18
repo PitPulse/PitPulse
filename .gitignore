@@ -41,11 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Claude local config (contains keys)
-CLAUDE.local.md
-.claude/
-.codex/
-
 # Python
 __pycache__/
 *.pyc
