@@ -1,8 +1,29 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/navbar";
+import { EventDataCacher } from "@/components/event-data-cacher";
 import { MatchBriefOverlayButton } from "./match-brief-overlay-button";
+import { PaginatedMatchGrid } from "./paginated-match-grid";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ eventKey: string }>;
+}): Promise<Metadata> {
+  const { eventKey } = await params;
+  const supabase = await createClient();
+  const { data: event } = await supabase
+    .from("events")
+    .select("name, year")
+    .eq("tba_key", eventKey)
+    .single();
+  const title = event
+    ? `Matches — ${event.year ? `${event.year} ` : ""}${event.name} | PitPilot`
+    : "Matches | PitPilot";
+  return { title };
+}
 
 export default async function MatchListPage({
   params,
@@ -175,7 +196,7 @@ export default async function MatchListPage({
         </div>
 
         {/* Red Alliance */}
-        <div className="mb-1 flex gap-1">
+        <div className="mb-1 flex gap-1" aria-label="Red alliance">
           {match.red_teams.map((team) => {
             const scouted = scoutedSet.has(`${match.id}-${team}`);
             const assigned = assignedSet.has(`${match.id}-${team}`);
@@ -188,6 +209,7 @@ export default async function MatchListPage({
                   key={team}
                   className="match-chip match-chip-red flex-1 cursor-not-allowed rounded px-2 py-1.5 text-center text-xs font-medium bg-red-400/20 text-red-100 ring-1 ring-red-300/55"
                   title="Self-scouting is disabled for your team."
+                  aria-label={`Team ${team} (red alliance, your team)`}
                 >
                   {team}
                 </span>
@@ -198,6 +220,7 @@ export default async function MatchListPage({
               <Link
                 key={team}
                 href={`/scout/${match.id}/${team}`}
+                aria-label={`Scout team ${team} (red alliance)${scouted ? ", already scouted" : ""}${assigned ? ", assigned to you" : ""}`}
                 className={`match-chip match-chip-red flex-1 rounded px-2 py-1.5 text-center text-xs font-medium transition ${
                   scouted
                     ? "bg-red-500/30 text-red-100 ring-2 ring-red-400/60"
@@ -214,7 +237,7 @@ export default async function MatchListPage({
         </div>
 
         {/* Blue Alliance */}
-        <div className="flex gap-1">
+        <div className="flex gap-1" aria-label="Blue alliance">
           {match.blue_teams.map((team) => {
             const scouted = scoutedSet.has(`${match.id}-${team}`);
             const assigned = assignedSet.has(`${match.id}-${team}`);
@@ -227,6 +250,7 @@ export default async function MatchListPage({
                   key={team}
                   className="match-chip match-chip-blue flex-1 cursor-not-allowed rounded px-2 py-1.5 text-center text-xs font-medium bg-blue-400/20 text-blue-100 ring-1 ring-blue-300/55"
                   title="Self-scouting is disabled for your team."
+                  aria-label={`Team ${team} (blue alliance, your team)`}
                 >
                   {team}
                 </span>
@@ -237,6 +261,7 @@ export default async function MatchListPage({
               <Link
                 key={team}
                 href={`/scout/${match.id}/${team}`}
+                aria-label={`Scout team ${team} (blue alliance)${scouted ? ", already scouted" : ""}${assigned ? ", assigned to you" : ""}`}
                 className={`match-chip match-chip-blue flex-1 rounded px-2 py-1.5 text-center text-xs font-medium transition ${
                   scouted
                     ? "bg-blue-500/30 text-blue-100 ring-2 ring-blue-400/60"
@@ -260,6 +285,11 @@ export default async function MatchListPage({
   return (
     <div className="min-h-screen overflow-x-hidden dashboard-page">
       <Navbar />
+      <EventDataCacher
+        eventKey={eventKey}
+        event={{ id: event.id, tba_key: eventKey, name: event.name, year: event.year }}
+        matches={matches ?? []}
+      />
       <main className="mx-auto max-w-2xl px-4 pb-12 pt-28 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -283,30 +313,26 @@ export default async function MatchListPage({
         </div>
         {/* Qual Matches */}
         {qualMatches.length > 0 && (
-          <section>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-400">
-              Qualification Matches ({qualMatches.length})
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {qualMatches.map((m) => (
-                <MatchCard key={m.id} match={m} />
-              ))}
-            </div>
-          </section>
+          <PaginatedMatchGrid
+            label="Qualification Matches"
+            totalCount={qualMatches.length}
+          >
+            {qualMatches.map((m) => (
+              <MatchCard key={m.id} match={m} />
+            ))}
+          </PaginatedMatchGrid>
         )}
 
         {/* Playoff Matches */}
         {playoffMatches.length > 0 && (
-          <section>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-400">
-              Playoff Matches ({playoffMatches.length})
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {playoffMatches.map((m) => (
-                <MatchCard key={m.id} match={m} />
-              ))}
-            </div>
-          </section>
+          <PaginatedMatchGrid
+            label="Playoff Matches"
+            totalCount={playoffMatches.length}
+          >
+            {playoffMatches.map((m) => (
+              <MatchCard key={m.id} match={m} />
+            ))}
+          </PaginatedMatchGrid>
         )}
 
         {(!matches || matches.length === 0) && (

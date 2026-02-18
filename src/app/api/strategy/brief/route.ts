@@ -956,7 +956,13 @@ Guidelines:
     let parsedJson: unknown;
     try {
       parsedJson = parseAiJson(textOutput);
-    } catch {
+    } catch (parseError) {
+      console.error(
+        "Failed to parse AI brief response as JSON:",
+        parseError instanceof Error ? parseError.message : parseError,
+        "\nRaw AI output (first 500 chars):",
+        textOutput.slice(0, 500)
+      );
       return NextResponse.json(
         { error: "Failed to parse AI response as JSON" },
         { status: 500 }

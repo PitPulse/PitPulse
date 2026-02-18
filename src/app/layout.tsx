@@ -7,6 +7,7 @@ import { RouteLoading } from "@/components/route-loading";
 import { ToastProvider } from "@/components/toast";
 import { PageTransition } from "@/components/page-transition";
 import { SmoothScroll } from "@/components/smooth-scroll";
+import { I18nProvider } from "@/components/i18n-provider";
 import { getSiteUrl } from "@/lib/site-url";
 
 const inter = Inter({
@@ -117,13 +118,15 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${geist.variable} ${jetbrainsMono.variable} ${outfit.variable} font-sans antialiased`}
       >
-        <ToastProvider>
-          <RouteLoading />
-          <SmoothScroll />
-          <PageTransition>{children}</PageTransition>
-          <ServiceWorkerRegister />
-          <OnlineStatus />
-        </ToastProvider>
+        <I18nProvider>
+          <ToastProvider>
+            <RouteLoading />
+            <SmoothScroll />
+            <PageTransition>{children}</PageTransition>
+            <ServiceWorkerRegister />
+            <OnlineStatus />
+          </ToastProvider>
+        </I18nProvider>
       </body>
     </html>
   );

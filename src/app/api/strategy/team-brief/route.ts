@@ -111,7 +111,11 @@ async function fetchStatbotics(path: string): Promise<JsonObject | null> {
     if (!res.ok) return null;
     const parsed = (await res.json()) as unknown;
     return asObject(parsed);
-  } catch {
+  } catch (error) {
+    console.warn(
+      `Statbotics fetch failed for ${path}:`,
+      error instanceof Error ? error.message : "Unknown error"
+    );
     return null;
   }
 }

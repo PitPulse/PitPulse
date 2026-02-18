@@ -137,6 +137,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!isValid) {
+    console.warn(
+      "Stripe webhook signature verification failed.",
+      "Signature header present:", !!signatureHeader,
+      "Payload length:", payload.length
+    );
     return NextResponse.json({ error: "Invalid webhook signature." }, { status: 400 });
   }
 

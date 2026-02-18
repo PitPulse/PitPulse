@@ -1,9 +1,28 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TeamStatsTable } from "./team-stats-table";
 import { Navbar } from "@/components/navbar";
 import { SyncStatsButton } from "./sync-stats-button";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ eventKey: string }>;
+}): Promise<Metadata> {
+  const { eventKey } = await params;
+  const supabase = await createClient();
+  const { data: event } = await supabase
+    .from("events")
+    .select("name, year")
+    .eq("tba_key", eventKey)
+    .single();
+  const title = event
+    ? `${event.year ? `${event.year} ` : ""}${event.name} | PitPilot`
+    : "Event | PitPilot";
+  return { title };
+}
 
 function formatSyncTime(value: string | null) {
   if (!value) return null;
@@ -221,6 +240,12 @@ export default async function EventPage({
                 Assignments
               </Link>
             )}
+            <Link
+              href={`/dashboard/events/${eventKey}/analytics`}
+              className="dashboard-action dashboard-action-warm"
+            >
+              Analytics
+            </Link>
             {isOrgInEvent && (
               <Link
                 href={`/dashboard/events/${eventKey}/draft`}

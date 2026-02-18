@@ -1,6 +1,6 @@
-const DB_NAME = "scoutai-offline";
+import { openDB } from "./offline-db";
+
 const STORE_NAME = "pending-entries";
-const DB_VERSION = 1;
 
 export interface PendingEntry {
   id: string;
@@ -22,29 +22,26 @@ export interface PendingEntry {
   ability_answers?: Record<string, boolean>;
   intake_methods?: string[] | null;
   climb_levels?: string[] | null;
+  endgame_state?: string | null;
   notes: string;
   created_at: string;
-}
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-  });
+  /** Sync status for retry/backoff tracking */
+  _syncStatus?: "queued" | "syncing" | "failed";
+  _failedAttempts?: number;
+  _lastAttemptAt?: string;
+  _schema?: number;
 }
 
 export async function saveOffline(entry: PendingEntry): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(entry);
+    tx.objectStore(STORE_NAME).put({
+      ...entry,
+      _syncStatus: entry._syncStatus ?? "queued",
+      _failedAttempts: entry._failedAttempts ?? 0,
+      _schema: entry._schema ?? 1,
+    });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -73,4 +70,38 @@ export async function removePendingEntry(id: string): Promise<void> {
 export async function getPendingCount(): Promise<number> {
   const entries = await getPendingEntries();
   return entries.length;
+}
+
+/** Update sync status fields on an existing entry (for retry/backoff) */
+export async function updateEntryStatus(
+  id: string,
+  updates: Partial<
+    Pick<PendingEntry, "_syncStatus" | "_failedAttempts" | "_lastAttemptAt">
+  >
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      if (existing) {
+        store.put({ ...existing, ...updates });
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Clear all pending entries (used by logout) */
+export async function clearAllPendingEntries(): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
 }

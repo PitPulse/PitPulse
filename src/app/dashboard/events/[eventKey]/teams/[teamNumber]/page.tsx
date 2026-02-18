@@ -1,8 +1,31 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/navbar";
 import { TeamAIBriefButton } from "./team-ai-brief-button";
+import { TeamDetailCharts } from "./team-detail-charts";
+import { ExportCsvButton } from "@/components/export-csv-button";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ eventKey: string; teamNumber: string }>;
+}): Promise<Metadata> {
+  const { eventKey, teamNumber } = await params;
+  const supabase = await createClient();
+  const [{ data: event }, { data: team }] = await Promise.all([
+    supabase.from("events").select("name, year").eq("tba_key", eventKey).single(),
+    supabase.from("teams").select("name").eq("team_number", parseInt(teamNumber, 10)).single(),
+  ]);
+  const eventLabel = event ? `${event.year ? `${event.year} ` : ""}${event.name}` : "";
+  const teamLabel = team?.name ? `Team ${teamNumber} ${team.name}` : `Team ${teamNumber}`;
+  return {
+    title: eventLabel
+      ? `${teamLabel} — ${eventLabel} | PitPilot`
+      : `${teamLabel} | PitPilot`,
+  };
+}
 
 export default async function TeamDetailPage({
   params,
@@ -333,6 +356,32 @@ export default async function TeamDetailPage({
           )}
         </div>
 
+        {/* Charts */}
+        <TeamDetailCharts
+          teamNumber={teamNumber}
+          scoutingEntries={entries.map((entry) => {
+            const match = matchMap.get(entry.match_id);
+            return {
+              matchLabel: match
+                ? compLabel(match.comp_level, match.match_number, match.set_number)
+                : "?",
+              autoScore: entry.auto_score,
+              teleopScore: entry.teleop_score,
+              endgameScore: entry.endgame_score,
+              defenseRating: entry.defense_rating,
+              reliabilityRating: entry.reliability_rating,
+            };
+          })}
+          epa={stats ? {
+            auto: stats.auto_epa,
+            teleop: stats.teleop_epa,
+            endgame: stats.endgame_epa,
+            total: stats.epa,
+          } : null}
+          avgDefense={aggregated?.avgDefense ?? null}
+          avgReliability={aggregated?.avgReliability ?? null}
+        />
+
         {/* Match History */}
         <div className="rounded-2xl dashboard-panel p-6">
           <h2 className="mb-4 text-lg font-semibold text-white">
@@ -416,9 +465,30 @@ export default async function TeamDetailPage({
         {/* Individual Scouting Entries */}
         {entries.length > 0 && (
           <div className="rounded-2xl dashboard-panel p-6">
-            <h2 className="mb-4 text-lg font-semibold text-white">
-              Scouting Entries
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">
+                Scouting Entries
+              </h2>
+              <ExportCsvButton
+                filename={`team-${teamNumber}-scouting.csv`}
+                headers={["Match", "Team", "Scout", "Auto", "Teleop", "Endgame", "Total", "Defense", "Reliability", "Notes"]}
+                rows={entries.map((entry) => {
+                  const match = matchMap.get(entry.match_id);
+                  return [
+                    match ? compLabel(match.comp_level, match.match_number, match.set_number) : "Unknown",
+                    entry.team_number,
+                    entry.profiles?.display_name ?? "Unknown",
+                    entry.auto_score,
+                    entry.teleop_score,
+                    entry.endgame_score,
+                    entry.auto_score + entry.teleop_score + entry.endgame_score,
+                    entry.defense_rating,
+                    entry.reliability_rating,
+                    entry.notes || "",
+                  ];
+                })}
+              />
+            </div>
             <div className="space-y-3">
               {entries.map((entry) => {
                 const match = matchMap.get(entry.match_id);

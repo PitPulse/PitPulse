@@ -117,8 +117,8 @@ export function TeamStatsTable({
         className="w-full max-w-sm rounded-lg px-3 py-2 text-sm text-white shadow-sm dashboard-input"
       />
 
-      <div className="overflow-x-auto rounded-none dashboard-table">
-        <table className="min-w-full divide-y divide-white/10">
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <table className="min-w-[640px] w-full divide-y divide-white/10 dashboard-table">
           <thead className="bg-white/5">
             <tr>
               <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-400">

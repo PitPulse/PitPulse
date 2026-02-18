@@ -185,6 +185,11 @@ export async function POST(request: Request) {
             );
 
             if (!res.ok) {
+              if (res.status !== 404) {
+                console.warn(
+                  `Statbotics fetch failed for team ${teamNum} at event ${eventKey}: HTTP ${res.status}`
+                );
+              }
               return { teamNum, row: null as null };
             }
 
@@ -208,7 +213,11 @@ export async function POST(request: Request) {
                 last_synced_at: new Date().toISOString(),
               },
             };
-          } catch {
+          } catch (error) {
+            console.warn(
+              `Statbotics fetch error for team ${teamNum} at event ${eventKey}:`,
+              error instanceof Error ? error.message : "Unknown error"
+            );
             return { teamNum, row: null as null };
           }
         })
@@ -254,6 +263,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Stats sync failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -276,6 +276,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Event sync failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

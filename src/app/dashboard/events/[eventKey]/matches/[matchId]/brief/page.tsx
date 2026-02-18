@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { BriefContentSchema, type BriefContent } from "@/types/strategy";
 import { GenerateBriefButton } from "./generate-button";
+import { BriefAllianceChart } from "./brief-alliance-chart";
 import { Navbar } from "@/components/navbar";
 
 export default async function BriefPage({
@@ -46,6 +47,68 @@ export default async function BriefPage({
       </div>
     );
   }
+
+  // Get scouting averages + EPA for alliance comparison chart
+  const allTeamNumbers = [...match.red_teams, ...match.blue_teams];
+  const { data: scoutingEntries } = await supabase
+    .from("scouting_entries")
+    .select("team_number, auto_score, teleop_score, endgame_score")
+    .eq("match_id", matchId)
+    .in("team_number", allTeamNumbers.length > 0 ? allTeamNumbers : [0]);
+
+  const { data: eventForStats } = await supabase
+    .from("events")
+    .select("id")
+    .eq("tba_key", eventKey)
+    .single();
+
+  const { data: epaStats } = eventForStats
+    ? await supabase
+        .from("team_event_stats")
+        .select("team_number, auto_epa, teleop_epa, endgame_epa")
+        .eq("event_id", eventForStats.id)
+        .in("team_number", allTeamNumbers.length > 0 ? allTeamNumbers : [0])
+    : { data: null };
+
+  const scoutAvgMap = new Map<number, { auto: number; teleop: number; endgame: number }>();
+  for (const entry of scoutingEntries ?? []) {
+    const existing = scoutAvgMap.get(entry.team_number);
+    if (!existing) {
+      scoutAvgMap.set(entry.team_number, {
+        auto: entry.auto_score,
+        teleop: entry.teleop_score,
+        endgame: entry.endgame_score,
+      });
+    } else {
+      existing.auto += entry.auto_score;
+      existing.teleop += entry.teleop_score;
+      existing.endgame += entry.endgame_score;
+    }
+  }
+  const scoutCountMap = new Map<number, number>();
+  for (const entry of scoutingEntries ?? []) {
+    scoutCountMap.set(entry.team_number, (scoutCountMap.get(entry.team_number) ?? 0) + 1);
+  }
+  for (const [team, avg] of scoutAvgMap.entries()) {
+    const count = scoutCountMap.get(team) ?? 1;
+    avg.auto /= count;
+    avg.teleop /= count;
+    avg.endgame /= count;
+  }
+
+  const epaMap = new Map(
+    (epaStats ?? []).map((s) => [
+      s.team_number,
+      { auto: s.auto_epa, teleop: s.teleop_epa, endgame: s.endgame_epa },
+    ])
+  );
+
+  const allianceChartTeams = allTeamNumbers.map((tn) => ({
+    teamNumber: tn,
+    alliance: (match.red_teams.includes(tn) ? "red" : "blue") as "red" | "blue",
+    scoutAvg: scoutAvgMap.get(tn) ?? null,
+    epa: epaMap.get(tn) ?? null,
+  }));
 
   // Get brief
   const { data: brief } = await supabase
@@ -192,6 +255,9 @@ export default async function BriefPage({
                 </div>
               </div>
             </div>
+
+            {/* Alliance Comparison Chart */}
+            <BriefAllianceChart teams={allianceChartTeams} />
 
             {/* Alliance Analysis */}
             <div className="grid gap-6 md:grid-cols-2">

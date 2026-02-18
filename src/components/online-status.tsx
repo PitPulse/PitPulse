@@ -2,11 +2,19 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/toast";
 import {
   getPendingEntries,
   removePendingEntry,
   getPendingCount,
+  updateEntryStatus,
 } from "@/lib/offline-queue";
+import { removeDraft, buildDraftKey } from "@/lib/offline-drafts";
+import {
+  autoCleanup,
+  checkStorageQuota,
+  downloadQueuedEntries,
+} from "@/lib/offline-cleanup";
 
 const OFFLINE_BANNER_DISMISS_KEY = "pitpilot:offline-banner-dismissed";
 const ONLINE_BANNER_DISMISS_KEY = "pitpilot:online-sync-banner-dismissed";
@@ -61,6 +69,7 @@ function setDismissed(key: string, dismissed: boolean) {
 }
 
 export function OnlineStatus() {
+  const { toast } = useToast();
   const probeVersion = useRef(0);
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine
@@ -162,6 +171,20 @@ export function OnlineStatus() {
     };
   }, [probeConnectivity, refreshCount]);
 
+  // Run auto-cleanup on mount (prune old cached data + check storage quota)
+  useEffect(() => {
+    void autoCleanup().catch(() => {});
+    void checkStorageQuota().then((estimate) => {
+      if (estimate?.isNearFull) {
+        toast(
+          `Storage is ${Math.round(estimate.percentUsed)}% full — consider clearing old event data`,
+          "info"
+        );
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const syncPendingEntries = useCallback(async () => {
     setSyncing(true);
     setSyncErrors(0);
@@ -171,11 +194,45 @@ export function OnlineStatus() {
     setSyncProgress({ current: 0, total });
 
     let errors = 0;
+    let synced = 0;
+    let deferred = 0;
+    const now = new Date().toISOString();
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
-      const { id: _id, ...data } = entry;
+      const failedAttempts = entry._failedAttempts ?? 0;
+
+      // Exponential backoff: skip entries that failed recently
+      // Backoff: 30s, 60s, 120s, 240s, 480s (caps at 5 failures → 8 min)
+      if (failedAttempts > 0 && entry._lastAttemptAt) {
+        const backoffMs =
+          Math.min(30000 * Math.pow(2, failedAttempts - 1), 480000);
+        const lastAttempt = new Date(entry._lastAttemptAt).getTime();
+        if (Date.now() - lastAttempt < backoffMs) {
+          // Skip this entry — not ready for retry yet
+          setSyncProgress({ current: i + 1, total });
+          deferred++;
+          continue;
+        }
+      }
+
+      // Mark as syncing
+      await updateEntryStatus(entry.id, { _syncStatus: "syncing" });
+
+      const {
+        id: _id,
+        _syncStatus: _s,
+        _failedAttempts: _f,
+        _lastAttemptAt: _l,
+        _schema: _sch,
+        ...data
+      } = entry;
       void _id;
+      void _s;
+      void _f;
+      void _l;
+      void _sch;
+
       let payload = { ...data };
       let error: { message: string } | null = null;
       let attempts = 0;
@@ -209,20 +266,40 @@ export function OnlineStatus() {
 
       if (!error) {
         await removePendingEntry(entry.id);
+        synced++;
+
+        // Clear draft for this entry (confirmed server sync)
+        try {
+          const draftId = buildDraftKey(
+            null, // We don't have eventKey here; try common pattern
+            entry.match_id,
+            entry.team_number,
+            entry.scouted_by
+          );
+          void removeDraft(draftId);
+        } catch {
+          // Best effort — draft key may not match exactly
+        }
       } else {
+        // Mark as failed with incremented attempt counter
+        await updateEntryStatus(entry.id, {
+          _syncStatus: "failed",
+          _failedAttempts: failedAttempts + 1,
+          _lastAttemptAt: now,
+        });
         errors++;
       }
       setSyncProgress({ current: i + 1, total });
     }
 
-    setSyncErrors(errors);
-    if (errors === 0 && total > 0) {
+    setSyncErrors(errors + deferred);
+    if (errors === 0 && deferred === 0 && total > 0) {
       setLastSyncTime(new Date());
     }
     const remaining = await getPendingCount().catch(() => null);
     if (typeof remaining === "number") {
       setPendingCount(remaining);
-      if (errors === 0 && remaining === 0) {
+      if (errors === 0 && deferred === 0 && remaining === 0) {
         setOnlineHidden(false);
         setDismissed(ONLINE_BANNER_DISMISS_KEY, false);
       }
@@ -230,7 +307,28 @@ export function OnlineStatus() {
       await refreshCount();
     }
     setSyncing(false);
-  }, [refreshCount]);
+
+    // Aggregated toast notifications (only for entries we actually attempted)
+    const attempted = synced + errors;
+    if (attempted > 0) {
+      if (synced > 0 && errors === 0) {
+        toast(
+          `${synced} ${synced === 1 ? "entry" : "entries"} synced successfully`,
+          "success"
+        );
+      } else if (synced > 0 && errors > 0) {
+        toast(
+          `${synced} synced, ${errors} failed — will retry automatically`,
+          "info"
+        );
+      } else if (errors > 0 && synced === 0) {
+        toast(
+          `${errors} ${errors === 1 ? "entry" : "entries"} failed to sync`,
+          "error"
+        );
+      }
+    }
+  }, [refreshCount, toast]);
 
   // Auto-sync when coming back online or when new pending entries appear
   useEffect(() => {
@@ -246,9 +344,6 @@ export function OnlineStatus() {
   // Hidden when online with nothing pending and no errors
   if (isOnline && pendingCount === 0 && syncErrors === 0) return null;
   if (isOnline && onlineHidden) return null;
-
-  // Hide offline banner unless there's pending local data to sync.
-  if (!isOnline && pendingCount === 0 && syncErrors === 0) return null;
 
   // Hidden when user dismissed offline banner
   if (!isOnline && offlineHidden) return null;
@@ -324,8 +419,14 @@ export function OnlineStatus() {
 
       {!isOnline && (
         <p className="mt-2 text-xs text-yellow-900/80">
-          If you&apos;ve already loaded match pages, you can still scout without reloading.
+          You&apos;re offline — cached data may be stale.
           Your entries will sync automatically when you&apos;re back online.
+        </p>
+      )}
+
+      {lastSyncTime && !isOnline && (
+        <p className="mt-1 text-xs text-yellow-900/60">
+          Last synced {lastSyncTime.toLocaleTimeString()}
         </p>
       )}
 
@@ -339,6 +440,20 @@ export function OnlineStatus() {
             }}
           />
         </div>
+      )}
+
+      {/* Export queued entries for manual backup */}
+      {pendingCount > 0 && !syncing && (
+        <button
+          onClick={() => void downloadQueuedEntries()}
+          className={`mt-2 w-full rounded px-2 py-1 text-xs transition ${
+            !isOnline
+              ? "bg-yellow-800/20 hover:bg-yellow-800/30 text-yellow-900"
+              : "bg-white/10 hover:bg-white/20"
+          }`}
+        >
+          Export {pendingCount} queued {pendingCount === 1 ? "entry" : "entries"} as JSON
+        </button>
       )}
 
       {/* Last sync time */}

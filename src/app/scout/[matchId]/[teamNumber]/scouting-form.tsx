@@ -6,6 +6,14 @@ import { createClient } from "@/lib/supabase/client";
 import { CounterButton } from "@/components/counter-button";
 import { StarRating } from "@/components/star-rating";
 import { saveOffline, getPendingCount } from "@/lib/offline-queue";
+import {
+  saveDraft,
+  getDraft,
+  removeDraft,
+  buildDraftKey,
+  DRAFT_SCHEMA_VERSION,
+  type DraftFormData,
+} from "@/lib/offline-drafts";
 import type { Tables } from "@/types/supabase";
 
 const INTAKE_OPTIONS = [
@@ -225,6 +233,7 @@ export function ScoutingForm({
   const [savedOffline, setSavedOffline] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [abilityAnswers, setAbilityAnswers] = useState<
     Record<string, boolean | null>
@@ -246,6 +255,124 @@ export function ScoutingForm({
   const ratingsRef = useRef<HTMLDivElement | null>(null);
   const abilitiesRef = useRef<HTMLDivElement | null>(null);
   const notesRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Draft auto-save / restore ──────────────────────────────────
+  const draftKey = useMemo(
+    () => buildDraftKey(eventKey, matchId, teamNumber, userId),
+    [eventKey, matchId, teamNumber, userId]
+  );
+
+  // Restore draft on mount (only if there's no server-side existing entry)
+  useEffect(() => {
+    if (existing) return; // Server data takes precedence
+    let cancelled = false;
+    void getDraft(draftKey).then((draft) => {
+      if (cancelled || !draft) return;
+      const d = draft.form_data;
+      setAutoScore(d.auto_score);
+      setAutoStartPosition(
+        d.auto_start_position === "left" ||
+          d.auto_start_position === "center" ||
+          d.auto_start_position === "right"
+          ? d.auto_start_position
+          : null
+      );
+      setAutoNotes(d.auto_notes);
+      setShootingRanges(d.shooting_ranges as ShootingRange[]);
+      setShootingReliability(d.shooting_reliability);
+      setTeleopScore(d.teleop_score);
+      setIntakeMethods(d.intake_methods as IntakeMethod[]);
+      setEndgameScore(d.endgame_score);
+      setClimbLevels(d.climb_levels as ClimbLevel[]);
+      setDefenseRating(d.defense_rating);
+      setCycleTimeRating(d.cycle_time_rating);
+      setReliabilityRating(d.reliability_rating);
+      setNotes(d.notes);
+      if (d.ability_answers) {
+        setAbilityAnswers(d.ability_answers);
+      }
+      setDraftRestored(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, existing]);
+
+  // Auto-dismiss "Draft restored" banner after 6 seconds
+  useEffect(() => {
+    if (!draftRestored) return;
+    const timer = setTimeout(() => setDraftRestored(false), 6000);
+    return () => clearTimeout(timer);
+  }, [draftRestored]);
+
+  // Auto-save draft every 5 seconds (debounced via timeout)
+  // Skip the initial mount — only save once user has actually changed something
+  const draftMountedRef = useRef(false);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!draftMountedRef.current) {
+      draftMountedRef.current = true;
+      return;
+    }
+    // Don't save drafts after successful submission
+    if (submitted) return;
+
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const formData: DraftFormData = {
+        auto_score: autoScore,
+        auto_start_position: autoStartPosition,
+        auto_notes: autoNotes,
+        shooting_ranges: shootingRanges,
+        shooting_reliability: shootingReliability,
+        teleop_score: teleopScore,
+        intake_methods: intakeMethods,
+        endgame_score: endgameScore,
+        climb_levels: climbLevels,
+        defense_rating: defenseRating,
+        cycle_time_rating: cycleTimeRating,
+        reliability_rating: reliabilityRating,
+        ability_answers: abilityAnswers,
+        notes,
+      };
+      void saveDraft({
+        id: draftKey,
+        event_key: eventKey ?? "none",
+        match_id: matchId,
+        team_number: teamNumber,
+        user_id: userId,
+        form_data: formData,
+        _schema: DRAFT_SCHEMA_VERSION,
+        _savedAt: new Date().toISOString(),
+      });
+    }, 5000);
+
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [
+    autoScore,
+    autoStartPosition,
+    autoNotes,
+    shootingRanges,
+    shootingReliability,
+    teleopScore,
+    intakeMethods,
+    endgameScore,
+    climbLevels,
+    defenseRating,
+    cycleTimeRating,
+    reliabilityRating,
+    abilityAnswers,
+    notes,
+    submitted,
+    draftKey,
+    eventKey,
+    matchId,
+    teamNumber,
+    userId,
+  ]);
 
   const steps = useMemo(
     () => {
@@ -370,7 +497,8 @@ export function ScoutingForm({
         attempts += 1;
       }
 
-      // Submitted online successfully
+      // Submitted online successfully — clear draft since server confirmed
+      void removeDraft(draftKey);
       setSubmitted(true);
       setSavedOffline(false);
       setLoading(false);
@@ -478,21 +606,43 @@ export function ScoutingForm({
   return (
       <div className="space-y-6 overflow-x-hidden pb-8">
       {error && (
-        <div className="rounded-md border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div role="alert" className="rounded-md border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
         </div>
       )}
 
-      <div className="sticky top-2 z-20 scout-panel p-3">
+      {draftRestored && (
+        <div className="flex items-center justify-between rounded-md border border-teal-400/30 bg-teal-500/10 p-3 text-sm text-teal-200">
+          <span>Draft restored from a previous session</span>
+          <button
+            type="button"
+            onClick={() => setDraftRestored(false)}
+            className="ml-2 text-xs text-teal-300/70 hover:text-teal-200"
+            aria-label="Dismiss draft restored notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <nav
+        aria-label="Scouting form progress"
+        className="sticky top-2 z-20 scout-panel p-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">
             Progress
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400" aria-live="polite">
             Step {activeStep + 1} of {steps.length}
           </p>
         </div>
         <div
+          role="progressbar"
+          aria-valuenow={activeStep + 1}
+          aria-valuemin={1}
+          aria-valuemax={steps.length}
+          aria-label={`Scouting progress: step ${activeStep + 1} of ${steps.length}, ${steps[activeStep]?.label ?? ""}`}
           className="mt-3 grid gap-2"
           style={{
             gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
@@ -502,13 +652,14 @@ export function ScoutingForm({
             <button
               key={step.label}
               type="button"
+              aria-label={`Go to ${step.label} section${index <= activeStep ? " (completed)" : ""}`}
               onClick={() =>
                 step.ref.current?.scrollIntoView({
                   behavior: "smooth",
                   block: "start",
                 })
               }
-              className="min-w-0 text-center"
+              className="min-w-0 min-h-[44px] text-center"
             >
               <span className="block h-1.5 overflow-hidden rounded-full bg-white/10">
                 <span
@@ -518,7 +669,7 @@ export function ScoutingForm({
                 />
               </span>
               <span
-                className={`mt-1 block truncate text-[10px] font-medium uppercase tracking-[0.1em] transition-colors duration-300 sm:text-[11px] ${
+                className={`mt-1 block truncate text-[11px] font-medium uppercase tracking-[0.1em] transition-colors duration-300 sm:text-xs ${
                   index === activeStep ? "text-cyan-200" : "text-gray-400"
                 }`}
               >
@@ -527,7 +678,7 @@ export function ScoutingForm({
             </button>
           ))}
         </div>
-      </div>
+      </nav>
 
       {/* Auto Section */}
       <section
@@ -581,10 +732,11 @@ export function ScoutingForm({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            <label htmlFor="auto-comments" className="text-xs font-semibold uppercase tracking-widest text-gray-400">
               Auto Comments
-            </p>
+            </label>
             <textarea
+              id="auto-comments"
               value={autoNotes}
               onChange={(e) => setAutoNotes(e.target.value)}
               placeholder="Route success, misses, timing notes..."
@@ -873,10 +1025,11 @@ export function ScoutingForm({
         onMouseDown={() => setActiveStep(abilityQuestions.length > 0 ? 5 : 4)}
         className="scout-panel p-4"
       >
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-300">
+        <label htmlFor="scouting-notes" className="mb-3 block text-sm font-semibold uppercase tracking-wider text-gray-300">
           Notes
-        </h2>
+        </label>
         <textarea
+          id="scouting-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Quick observations..."

@@ -1,5 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  buildRateLimitHeaders,
+  checkRateLimit,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
+
+const LOOKUP_RATE_WINDOW_MS = 60 * 1000; // 1 minute
+const LOOKUP_RATE_LIMIT_MAX = 15; // 15 lookups per minute per IP
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 export async function GET(request: NextRequest) {
   const number = request.nextUrl.searchParams.get("number");
@@ -8,6 +24,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: "Invalid team number" },
       { status: 400 }
+    );
+  }
+
+  const clientIp = getClientIp(request);
+  const limit = await checkRateLimit(
+    `team-lookup:${clientIp}`,
+    LOOKUP_RATE_WINDOW_MS,
+    LOOKUP_RATE_LIMIT_MAX
+  );
+  const limitHeaders = buildRateLimitHeaders(limit, LOOKUP_RATE_LIMIT_MAX);
+
+  if (!limit.allowed) {
+    const retryAfter = retryAfterSeconds(limit.resetAt);
+    return NextResponse.json(
+      { error: "Too many requests. Please try again shortly." },
+      {
+        status: 429,
+        headers: { ...limitHeaders, "Retry-After": retryAfter.toString() },
+      }
     );
   }
 
@@ -39,15 +74,21 @@ export async function GET(request: NextRequest) {
         const data = await res.json();
         tbaName = data.nickname ?? data.name ?? null;
       }
-    } catch {
-      // TBA lookup failed — non-critical
+    } catch (error) {
+      console.warn(
+        `TBA lookup failed for team ${teamNumber}:`,
+        error instanceof Error ? error.message : "Unknown error"
+      );
     }
   }
 
-  return NextResponse.json({
-    team_number: teamNumber,
-    name: tbaName,
-    exists: tbaName !== null,
-    taken: existingOrg !== null,
-  });
+  return NextResponse.json(
+    {
+      team_number: teamNumber,
+      name: tbaName,
+      exists: tbaName !== null,
+      taken: existingOrg !== null,
+    },
+    { headers: limitHeaders }
+  );
 }
