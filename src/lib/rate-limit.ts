@@ -29,24 +29,27 @@ const RATE_LIMIT_LUA = `
 local key = KEYS[1]
 local max = tonumber(ARGV[1])
 local window = tonumber(ARGV[2])
+local cost = tonumber(ARGV[3]) or 1
 
-local current = redis.call("INCR", key)
-if current == 1 then
+local current = tonumber(redis.call("GET", key) or "0")
+
+if current + cost > max and current > 0 then
+  local ttl = redis.call("PTTL", key)
+  local remaining = max - current
+  if remaining < 0 then remaining = 0 end
+  return {0, remaining, ttl}
+end
+
+current = redis.call("INCRBY", key, cost)
+if current == cost then
   redis.call("PEXPIRE", key, window)
 end
 
 local ttl = redis.call("PTTL", key)
-local allowed = 0
-if current <= max then
-  allowed = 1
-end
-
 local remaining = max - current
-if remaining < 0 then
-  remaining = 0
-end
+if remaining < 0 then remaining = 0 end
 
-return {allowed, remaining, ttl}
+return {1, remaining, ttl}
 `;
 
 function getStore(): Map<string, RateLimitEntry> {
@@ -75,7 +78,8 @@ function resetRateLimitPrefixInMemory(prefix: string): number {
 function checkRateLimitInMemory(
   key: string,
   windowMs: number,
-  max: number
+  max: number,
+  cost: number = 1
 ): RateLimitResult {
   const store = getStore();
   const now = Date.now();
@@ -83,15 +87,15 @@ function checkRateLimitInMemory(
 
   if (!entry || entry.resetAt <= now) {
     const resetAt = now + windowMs;
-    store.set(key, { count: 1, resetAt });
-    return { allowed: true, remaining: Math.max(max - 1, 0), resetAt };
+    store.set(key, { count: cost, resetAt });
+    return { allowed: true, remaining: Math.max(max - cost, 0), resetAt };
   }
 
-  if (entry.count >= max) {
-    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
+  if (entry.count + cost > max) {
+    return { allowed: false, remaining: Math.max(max - entry.count, 0), resetAt: entry.resetAt };
   }
 
-  entry.count += 1;
+  entry.count += cost;
   store.set(key, entry);
   return {
     allowed: true,
@@ -103,7 +107,8 @@ function checkRateLimitInMemory(
 async function checkRateLimitUpstash(
   key: string,
   windowMs: number,
-  max: number
+  max: number,
+  cost: number = 1
 ): Promise<RateLimitResult | null> {
   if (!canUseUpstashRateLimit) return null;
 
@@ -115,7 +120,7 @@ async function checkRateLimitUpstash(
         "Content-Type": "application/json",
       },
       body: JSON.stringify([
-        ["EVAL", RATE_LIMIT_LUA, "1", key, String(max), String(windowMs)],
+        ["EVAL", RATE_LIMIT_LUA, "1", key, String(max), String(windowMs), String(cost)],
       ]),
       cache: "no-store",
     });
@@ -335,11 +340,12 @@ async function resetRateLimitPrefixUpstash(
 export async function checkRateLimit(
   key: string,
   windowMs: number,
-  max: number
+  max: number,
+  cost: number = 1
 ): Promise<RateLimitResult> {
-  const distributed = await checkRateLimitUpstash(key, windowMs, max);
+  const distributed = await checkRateLimitUpstash(key, windowMs, max, cost);
   if (distributed) return distributed;
-  return checkRateLimitInMemory(key, windowMs, max);
+  return checkRateLimitInMemory(key, windowMs, max, cost);
 }
 
 export async function peekRateLimit(

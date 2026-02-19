@@ -227,10 +227,13 @@ export async function POST(request: NextRequest) {
     teamAiPromptLimits,
     orgMeta?.plan_tier
   );
+  // Pick list generation costs 3 tokens (it uses ~13x more AI than a regular prompt)
+  const PICKLIST_COST = 3;
   const limit = await checkRateLimit(
     `ai-interactions:${profile.org_id}`,
     TEAM_AI_WINDOW_MS,
-    aiLimit
+    aiLimit,
+    PICKLIST_COST
   );
   const limitHeaders = buildRateLimitHeaders(limit, aiLimit);
   if (!limit.allowed) {

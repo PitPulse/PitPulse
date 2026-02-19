@@ -4,23 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 import type { PickListContent } from "@/types/strategy";
 import { GeneratePickListButton } from "./generate-button";
 import { Navbar } from "@/components/navbar";
-import { StrategyChat } from "../strategy-chat";
+import { ChatSidebarTrigger } from "@/components/chat-sidebar";
 import { getScoutingFormConfig } from "@/lib/platform-settings";
 import { PickListLoadingProvider, PickListContentArea } from "./picklist-content";
 
 export default async function PickListPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ eventKey: string }>;
-  searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const { eventKey } = await params;
-  const askParam =
-    typeof searchParams?.ask === "string" ? searchParams.ask : null;
-  const initialAsk = askParam
-    ? `Give me a quick briefing on Team ${askParam} for this event.`
-    : "";
   const supabase = await createClient();
 
   const {
@@ -309,13 +302,15 @@ export default async function PickListPage({
 
             <aside className="space-y-6">
               <section className="rounded-2xl dashboard-panel p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20">
+                    <svg className="h-5 w-5 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                    </svg>
+                  </span>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-                      Ask PitPilot
-                    </p>
                     <h2 className="text-lg font-bold text-white">
-                      Strategy chat for this event
+                      Ask PitPilot
                     </h2>
                     <p className="text-sm text-gray-400">
                       Get quick insights on opponents and alliance fit.
@@ -323,7 +318,11 @@ export default async function PickListPage({
                   </div>
                 </div>
                 <div className="mt-4">
-                  <StrategyChat eventKey={eventKey} initialInput={initialAsk} />
+                  <ChatSidebarTrigger
+                    eventKey={eventKey}
+                    label="Open Strategy Chat"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20 hover:border-blue-500/40"
+                  />
                 </div>
               </section>
 

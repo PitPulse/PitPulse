@@ -211,6 +211,7 @@ export function GeneratePickListButton({
       setShowProfileModal(false);
       // Keep skeleton visible until the router finishes fetching new server data.
       await router.refresh();
+      toast("Pick list generated successfully!", "success");
     } catch {
       setError("Network error. Please try again.");
     }

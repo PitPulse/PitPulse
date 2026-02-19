@@ -2,13 +2,13 @@
 
 import Avatar from "boring-avatars";
 
-// Brand-aligned palette
+// High-contrast palette — each color is visually distinct
 const DEFAULT_COLORS = [
   "#0d9488", // teal-600
+  "#f97316", // orange-500
+  "#8b5cf6", // violet-500
   "#06b6d4", // cyan-500
-  "#2dd4bf", // teal-300
-  "#a78bfa", // violet-400
-  "#f0abfc", // fuchsia-300
+  "#f43f5e", // rose-500
 ];
 
 export interface UserAvatarProps {
