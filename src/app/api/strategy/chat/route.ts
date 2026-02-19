@@ -74,12 +74,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { eventKey, message } = await request.json();
+  const { eventKey, message, history } = await request.json();
   if (!eventKey || typeof eventKey !== "string") {
     return NextResponse.json({ error: "eventKey is required" }, { status: 400 });
   }
   if (!message || typeof message !== "string") {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
+  }
+
+  // Validate and cap conversation history to last 6 exchanges (12 messages)
+  const conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+  if (Array.isArray(history)) {
+    const trimmed = history.slice(-12);
+    for (const msg of trimmed) {
+      if (
+        msg &&
+        typeof msg.content === "string" &&
+        (msg.role === "user" || msg.role === "assistant")
+      ) {
+        conversationHistory.push({ role: msg.role, content: msg.content });
+      }
+    }
   }
 
   const { data: event } = await supabase
@@ -208,22 +223,30 @@ Rules:
     },
     ourTeamNumber: orgTeamNumber,
     teams: teamContext,
-    question: message,
   };
 
   try {
     const client = new Anthropic({ apiKey });
+    // Build messages array: context payload first, then conversation history, then new question
+    const messages: Array<{ role: "user" | "assistant"; content: string }> = [
+      { role: "user", content: `[Event context]\n${JSON.stringify(userPayload)}` },
+      { role: "assistant", content: "Got it — I have the event context loaded. What would you like to know?" },
+    ];
+
+    // Append conversation history (prior turns)
+    for (const msg of conversationHistory) {
+      messages.push(msg);
+    }
+
+    // Append the new question
+    messages.push({ role: "user", content: message });
+
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 700,
       temperature: 0.3,
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: JSON.stringify(userPayload),
-        },
-      ],
+      messages,
     });
 
     const textOutput = response.content
