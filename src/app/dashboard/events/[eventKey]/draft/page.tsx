@@ -22,7 +22,7 @@ export default async function DraftRoomPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("org_id")
+    .select("org_id, display_name")
     .eq("id", user.id)
     .single();
 
@@ -127,6 +127,8 @@ export default async function DraftRoomPage({
         <DraftRoom
           eventId={event.id}
           eventKey={eventKey}
+          eventName={event.name}
+          userName={profile?.display_name ?? null}
           orgId={profile.org_id}
           rankings={rankings}
           teamNames={teamNames}

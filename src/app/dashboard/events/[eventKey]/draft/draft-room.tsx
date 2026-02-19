@@ -250,6 +250,8 @@ function setTeamDragPreview(event: DragEvent<HTMLElement>) {
 export function DraftRoom({
   eventId,
   eventKey,
+  eventName,
+  userName,
   orgId,
   rankings,
   teamNames,
@@ -260,6 +262,8 @@ export function DraftRoom({
 }: {
   eventId: string;
   eventKey: string;
+  eventName: string;
+  userName: string | null;
   orgId: string;
   rankings: RankingEntry[];
   teamNames: Record<number, string>;
@@ -942,7 +946,7 @@ export function DraftRoom({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <ChatSidebarTrigger eventKey={eventKey} />
+                <ChatSidebarTrigger eventKey={eventKey} eventName={eventName} userName={userName} />
                 {pickList && (
                   <GeneratePickListButton
                     eventId={eventId}

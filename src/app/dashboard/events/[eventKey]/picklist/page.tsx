@@ -23,7 +23,7 @@ export default async function PickListPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("org_id")
+    .select("org_id, display_name")
     .eq("id", user.id)
     .single();
 
@@ -320,6 +320,8 @@ export default async function PickListPage({
                 <div className="mt-4">
                   <ChatSidebarTrigger
                     eventKey={eventKey}
+                    eventName={event.name}
+                    userName={profile?.display_name ?? null}
                     label="Open Strategy Chat"
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20 hover:border-blue-500/40"
                   />

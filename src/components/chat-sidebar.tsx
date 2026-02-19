@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useToast } from "@/components/toast";
+import ReactMarkdown from "react-markdown";
 import {
-  formatRateLimitUsageMessage,
   readRateLimitSnapshot,
   resolveRateLimitMessage,
 } from "@/lib/rate-limit-ui";
@@ -15,26 +14,145 @@ type ChatMessage = {
   content: string;
 };
 
+/* ── Suggestion prompts ────────────────────────────────────────── */
+
+const SUGGESTION_PROMPTS = [
+  "Who are the strongest teams here?",
+  "Compare the top 3 pick list teams",
+  "Best alliance partner for a scoring robot?",
+  "Which teams are underrated sleepers?",
+];
+
+/* ── Chat session cache (sessionStorage per event) ────────────── */
+
+const CACHE_PREFIX = "pitpilot_chat_";
+
+function getCachedMessages(eventKey: string): ChatMessage[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(`${CACHE_PREFIX}${eventKey}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 1 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedMessages(eventKey: string, messages: ChatMessage[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(`${CACHE_PREFIX}${eventKey}`, JSON.stringify(messages));
+  } catch {
+    /* quota exceeded — ignore */
+  }
+}
+
+/* ── Markdown components for chat bubbles ─────────────────────── */
+
+const markdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-2 last:mb-0">{children}</p>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-white">{children}</strong>
+  ),
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className="italic text-gray-300">{children}</em>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="mb-2 ml-4 list-disc space-y-1 last:mb-0">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="mb-2 ml-4 list-decimal space-y-1 last:mb-0">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="text-gray-200">{children}</li>
+  ),
+  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+    const isBlock = className?.includes("language-");
+    if (isBlock) {
+      return (
+        <pre className="mb-2 overflow-x-auto rounded-lg bg-black/30 p-3 text-xs last:mb-0">
+          <code className="text-gray-200">{children}</code>
+        </pre>
+      );
+    }
+    return (
+      <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-blue-200">{children}</code>
+    );
+  },
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="mb-1 mt-3 text-sm font-semibold text-white first:mt-0">{children}</h3>
+  ),
+  h4: ({ children }: { children?: React.ReactNode }) => (
+    <h4 className="mb-1 mt-2 text-xs font-semibold text-white first:mt-0">{children}</h4>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline hover:text-blue-200">
+      {children}
+    </a>
+  ),
+  hr: () => <hr className="my-3 border-white/10" />,
+} as Record<string, React.ComponentType<Record<string, unknown>>>;
+
+/* ── Sparkle icon (reused in several spots) ───────────────────── */
+
+function SparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+    </svg>
+  );
+}
+
+/* ── Main sidebar ─────────────────────────────────────────────── */
+
 interface ChatSidebarProps {
   open: boolean;
   onClose: () => void;
   eventKey: string;
+  eventName?: string | null;
+  userName?: string | null;
 }
 
-export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
-  const { toast } = useToast();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content:
-        "Hey! Ask me anything about this event — team comparisons, matchup analysis, draft strategy, or scouting insights.",
-    },
-  ]);
+export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: ChatSidebarProps) {
+  // Build a personalised greeting
+  const greeting = useMemo(() => {
+    const nameGreet = userName ? `Hey ${userName.split(" ")[0]}!` : "Hey!";
+    const eventPart = eventName
+      ? `I'm your strategy assistant for **${eventName}**.`
+      : "I'm your strategy assistant for this event.";
+    return `${nameGreet} ${eventPart} Ask me about team comparisons, matchup analysis, draft strategy, or scouting insights.`;
+  }, [userName, eventName]);
+
+  // Restore cached messages for this event (or start fresh)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const cached = getCachedMessages(eventKey);
+    if (cached) return cached;
+    return [{ role: "assistant", content: greeting }];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Show suggestion chips only until the user sends a message
+  const [showSuggestions, setShowSuggestions] = useState(() => {
+    const cached = getCachedMessages(eventKey);
+    // If there are cached messages with conversation, don't show suggestions
+    return !cached || cached.length <= 1;
+  });
+  // Inline usage hint shown above the input bar
+  const [usageHint, setUsageHint] = useState<string | null>(null);
+  const usageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Persist messages to sessionStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setCachedMessages(eventKey, messages);
+    }
+  }, [messages, eventKey]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -68,10 +186,11 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
     };
   }, [open]);
 
-  async function handleSend() {
-    const trimmed = input.trim();
+  async function handleSend(overrideMessage?: string) {
+    const trimmed = (overrideMessage ?? input).trim();
     if (!trimmed || loading) return;
 
+    setShowSuggestions(false);
     const updatedMessages: ChatMessage[] = [
       ...messages,
       { role: "user", content: trimmed },
@@ -91,9 +210,6 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
         body: JSON.stringify({ eventKey, message: trimmed, history }),
       });
       const usage = readRateLimitSnapshot(res.headers);
-      if (usage) {
-        toast(formatRateLimitUsageMessage(usage, "ai"), "info");
-      }
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(
@@ -108,6 +224,17 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
         ...prev,
         { role: "assistant", content: data.reply as string },
       ]);
+
+      // Show inline usage hint above the input bar
+      if (usage) {
+        const remainingPct = Math.max(
+          0,
+          Math.min(100, Math.round((usage.remaining / Math.max(1, usage.limit)) * 100))
+        );
+        setUsageHint(`${remainingPct}% AI usage remaining`);
+        if (usageTimerRef.current) clearTimeout(usageTimerRef.current);
+        usageTimerRef.current = setTimeout(() => setUsageHint(null), 5000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -121,6 +248,11 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
       handleSend();
     }
   }
+
+  /** Render message content as markdown. */
+  const renderContent = useCallback((text: string) => (
+    <ReactMarkdown components={markdownComponents}>{text}</ReactMarkdown>
+  ), []);
 
   if (typeof document === "undefined") return null;
 
@@ -156,9 +288,7 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20">
-                  <svg className="h-4 w-4 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-                  </svg>
+                  <SparkleIcon className="h-4 w-4 text-blue-300" />
                 </span>
                 <div>
                   <h2 className="text-sm font-semibold text-white">PitPilot AI</h2>
@@ -188,9 +318,7 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
                 >
                   {message.role === "assistant" && (
                     <span className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20">
-                      <svg className="h-3 w-3 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                      </svg>
+                      <SparkleIcon className="h-3 w-3 text-blue-300" />
                     </span>
                   )}
                   <div
@@ -200,16 +328,37 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
                         : "bg-white/[0.06] text-gray-200"
                     }`}
                   >
-                    {message.content}
+                    {renderContent(message.content)}
                   </div>
                 </div>
               ))}
+
+              {/* Suggestion chips — shown only before the first user message */}
+              {showSuggestions && !loading && messages.length === 1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.25, delay: 0.15 }}
+                  className="flex flex-wrap gap-2 pl-8"
+                >
+                  {SUGGESTION_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => handleSend(prompt)}
+                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-gray-300 transition hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-blue-200"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+
               {loading && (
                 <div className="flex items-start gap-2">
                   <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20">
-                    <svg className="h-3 w-3 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                    </svg>
+                    <SparkleIcon className="h-3 w-3 text-blue-300" />
                   </span>
                   <div className="rounded-2xl bg-white/[0.06] px-4 py-3">
                     <div className="flex items-center gap-1.5">
@@ -225,6 +374,19 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
 
             {/* Input area */}
             <div className="border-t border-white/10 px-5 py-4">
+              <AnimatePresence>
+                {usageHint && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    animate={{ opacity: 1, height: "auto", marginBottom: 8 }}
+                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden text-center text-[11px] text-gray-400"
+                  >
+                    {usageHint}
+                  </motion.p>
+                )}
+              </AnimatePresence>
               {error && (
                 <p className="mb-2 text-xs text-red-300">{error}</p>
               )}
@@ -246,7 +408,7 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
                 />
                 <button
                   type="button"
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={loading || !input.trim()}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label="Send message"
@@ -275,10 +437,14 @@ export function ChatSidebar({ open, onClose, eventKey }: ChatSidebarProps) {
 /** Trigger button to open the chat sidebar. */
 export function ChatSidebarTrigger({
   eventKey,
+  eventName,
+  userName,
   className,
   label = "Ask PitPilot",
 }: {
   eventKey: string;
+  eventName?: string | null;
+  userName?: string | null;
   className?: string;
   label?: string;
 }) {
@@ -294,12 +460,16 @@ export function ChatSidebarTrigger({
           "inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300 transition hover:bg-blue-500/20 hover:border-blue-500/40"
         }
       >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-        </svg>
+        <SparkleIcon className="h-3.5 w-3.5" />
         {label}
       </button>
-      <ChatSidebar open={open} onClose={() => setOpen(false)} eventKey={eventKey} />
+      <ChatSidebar
+        open={open}
+        onClose={() => setOpen(false)}
+        eventKey={eventKey}
+        eventName={eventName}
+        userName={userName}
+      />
     </>
   );
 }
