@@ -36,7 +36,7 @@ export default async function TeamPulsePage() {
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-28">
+      <main className="mx-auto max-w-6xl px-4 pb-16 pt-32">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-teal-400">

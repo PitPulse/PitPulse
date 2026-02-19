@@ -7,9 +7,12 @@ import type { Database } from "@/types/supabase";
 import {
   getDefaultEventSyncMinYear,
   getDefaultTeamAiPromptLimits,
+  getDefaultScoutingFormConfig,
   normalizeScoutingAbilityQuestions,
   normalizeTeamAiPromptLimits,
+  normalizeScoutingFormConfig,
   serializeQuestionSettingsPayload,
+  type ScoutingFormConfig,
 } from "@/lib/platform-settings";
 import { resetRateLimitPrefix } from "@/lib/rate-limit";
 
@@ -330,23 +333,26 @@ export async function deleteContactMessage(formData: FormData) {
 function extractQuestionSettings(raw: unknown): {
   questions: string[];
   aiPromptLimits: { free: number; supporter: number };
+  formConfig: ScoutingFormConfig;
 } {
   const defaultQuestions = normalizeScoutingAbilityQuestions([]);
   const defaultLimits = getDefaultTeamAiPromptLimits();
+  const defaultFormConfig = getDefaultScoutingFormConfig();
 
   if (!raw) {
-    return { questions: defaultQuestions, aiPromptLimits: defaultLimits };
+    return { questions: defaultQuestions, aiPromptLimits: defaultLimits, formConfig: defaultFormConfig };
   }
 
   if (Array.isArray(raw)) {
     return {
       questions: normalizeScoutingAbilityQuestions(raw),
       aiPromptLimits: defaultLimits,
+      formConfig: defaultFormConfig,
     };
   }
 
   if (typeof raw !== "object") {
-    return { questions: defaultQuestions, aiPromptLimits: defaultLimits };
+    return { questions: defaultQuestions, aiPromptLimits: defaultLimits, formConfig: defaultFormConfig };
   }
 
   const obj = raw as Record<string, unknown>;
@@ -355,10 +361,12 @@ function extractQuestionSettings(raw: unknown): {
     obj.scoutingAbilityQuestions ??
     obj.scouting_ability_questions;
   const aiLimitsSource = obj.aiPromptLimits ?? obj.ai_prompt_limits;
+  const formConfigSource = obj.formConfig ?? obj.form_config;
 
   return {
     questions: normalizeScoutingAbilityQuestions(questionSource),
     aiPromptLimits: normalizeTeamAiPromptLimits(aiLimitsSource),
+    formConfig: normalizeScoutingFormConfig(formConfigSource),
   };
 }
 
@@ -455,7 +463,7 @@ export async function updateScoutingAbilityQuestions(formData: FormData) {
 
   const eventSyncMinYear =
     current?.event_sync_min_year ?? getDefaultEventSyncMinYear();
-  const { aiPromptLimits } = extractQuestionSettings(
+  const { aiPromptLimits, formConfig } = extractQuestionSettings(
     current?.scouting_ability_questions
   );
 
@@ -468,6 +476,7 @@ export async function updateScoutingAbilityQuestions(formData: FormData) {
         scouting_ability_questions: serializeQuestionSettingsPayload({
           questions,
           aiPromptLimits,
+          formConfig,
         }),
         updated_at: new Date().toISOString(),
       },
@@ -546,7 +555,7 @@ export async function updateTeamAiPromptLimits(formData: FormData) {
 
   const eventSyncMinYear =
     current?.event_sync_min_year ?? getDefaultEventSyncMinYear();
-  const { questions } = extractQuestionSettings(current?.scouting_ability_questions);
+  const { questions, formConfig } = extractQuestionSettings(current?.scouting_ability_questions);
 
   const { error } = await admin
     .from("platform_settings")
@@ -560,6 +569,7 @@ export async function updateTeamAiPromptLimits(formData: FormData) {
             free: freeParsed,
             supporter: supporterParsed,
           },
+          formConfig,
         }),
         updated_at: new Date().toISOString(),
       },
@@ -585,6 +595,78 @@ export async function updateTeamAiPromptLimits(formData: FormData) {
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/events");
+  return { success: true } as const;
+}
+
+export async function updateScoutingFormConfig(formData: FormData) {
+  const ctx = await requireStaff();
+  if ("error" in ctx) return { error: ctx.error } as const;
+
+  const raw = (formData.get("formConfigJson") as string | null)?.trim();
+  if (!raw) {
+    return { error: "Missing scouting form config payload." } as const;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { error: "Invalid scouting form config payload." } as const;
+  }
+
+  const formConfig = normalizeScoutingFormConfig(parsed);
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    return {
+      error: "SUPABASE_SERVICE_ROLE_KEY is missing.",
+    } as const;
+  }
+
+  const admin = createAdminClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey
+  );
+
+  const { data: current } = await admin
+    .from("platform_settings")
+    .select("event_sync_min_year, scouting_ability_questions")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const eventSyncMinYear =
+    current?.event_sync_min_year ?? getDefaultEventSyncMinYear();
+  const { questions, aiPromptLimits } = extractQuestionSettings(
+    current?.scouting_ability_questions
+  );
+
+  const { error } = await admin
+    .from("platform_settings")
+    .upsert(
+      {
+        id: 1,
+        event_sync_min_year: eventSyncMinYear,
+        scouting_ability_questions: serializeQuestionSettingsPayload({
+          questions,
+          aiPromptLimits,
+          formConfig,
+        }),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+
+  if (error) {
+    if (error.message.toLowerCase().includes("platform_settings")) {
+      return {
+        error:
+          "Platform settings table is missing. Run the new migration first.",
+      } as const;
+    }
+    return { error: error.message } as const;
+  }
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/scout");
   return { success: true } as const;
 }
 

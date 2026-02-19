@@ -290,7 +290,7 @@ export default async function MatchListPage({
         event={{ id: event.id, tba_key: eventKey, name: event.name, year: event.year }}
         matches={matches ?? []}
       />
-      <main className="mx-auto max-w-2xl px-4 pb-12 pt-28 space-y-6">
+      <main className="mx-auto max-w-2xl px-4 pb-12 pt-32 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">

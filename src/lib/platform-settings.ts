@@ -10,6 +10,105 @@ const DEFAULT_SCOUTING_ABILITY_QUESTIONS = [
 const MIN_AI_PROMPT_LIMIT = 1;
 const MAX_AI_PROMPT_LIMIT = 50;
 
+/* ── Scouting Form Config ─────────────────────────────────────── */
+
+export interface FormOptionItem {
+  key: string;
+  label: string;
+}
+
+export interface ScoutingFormConfig {
+  intakeOptions: FormOptionItem[];
+  climbLevelOptions: FormOptionItem[];
+  shootingRangeOptions: FormOptionItem[];
+  autoStartPositions: string[];
+  ratingFields: FormOptionItem[];
+}
+
+const DEFAULT_SCOUTING_FORM_CONFIG: ScoutingFormConfig = {
+  intakeOptions: [
+    { key: "depot", label: "Ground Intake" },
+    { key: "human_intake", label: "Human Intake" },
+  ],
+  climbLevelOptions: [
+    { key: "level_1", label: "Level 1" },
+    { key: "level_2", label: "Level 2" },
+    { key: "level_3", label: "Level 3" },
+  ],
+  shootingRangeOptions: [
+    { key: "close", label: "Close" },
+    { key: "mid", label: "Mid" },
+    { key: "long", label: "Long" },
+  ],
+  autoStartPositions: ["left", "center", "right"],
+  ratingFields: [
+    { key: "defense", label: "Defense Ability" },
+    { key: "cycle_time", label: "Cycle Time" },
+    { key: "shooting_reliability", label: "Auto Shooting Reliability" },
+    { key: "reliability", label: "Overall Reliability" },
+  ],
+};
+
+export function getDefaultScoutingFormConfig(): ScoutingFormConfig {
+  return JSON.parse(JSON.stringify(DEFAULT_SCOUTING_FORM_CONFIG));
+}
+
+function normalizeFormOptionItem(value: unknown): FormOptionItem | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const key = typeof obj.key === "string" ? obj.key.trim().slice(0, 60) : "";
+  const label = typeof obj.label === "string" ? obj.label.trim().slice(0, 80) : "";
+  if (!key || !label) return null;
+  return { key, label };
+}
+
+function normalizeFormOptionItems(value: unknown, fallback: FormOptionItem[]): FormOptionItem[] {
+  if (!Array.isArray(value)) return fallback;
+  const seen = new Set<string>();
+  const items: FormOptionItem[] = [];
+  for (const item of value) {
+    const normalized = normalizeFormOptionItem(item);
+    if (!normalized) continue;
+    const lowerKey = normalized.key.toLowerCase();
+    if (seen.has(lowerKey)) continue;
+    seen.add(lowerKey);
+    items.push(normalized);
+    if (items.length >= 20) break;
+  }
+  return items.length > 0 ? items : fallback;
+}
+
+function normalizeStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim().slice(0, 60);
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    items.push(trimmed);
+    if (items.length >= 20) break;
+  }
+  return items.length > 0 ? items : fallback;
+}
+
+export function normalizeScoutingFormConfig(value: unknown): ScoutingFormConfig {
+  const defaults = getDefaultScoutingFormConfig();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return defaults;
+
+  const obj = value as Record<string, unknown>;
+  return {
+    intakeOptions: normalizeFormOptionItems(obj.intakeOptions, defaults.intakeOptions),
+    climbLevelOptions: normalizeFormOptionItems(obj.climbLevelOptions, defaults.climbLevelOptions),
+    shootingRangeOptions: normalizeFormOptionItems(obj.shootingRangeOptions, defaults.shootingRangeOptions),
+    autoStartPositions: normalizeStringArray(obj.autoStartPositions, defaults.autoStartPositions),
+    ratingFields: normalizeFormOptionItems(obj.ratingFields, defaults.ratingFields),
+  };
+}
+
 export type TeamAiPromptLimits = Record<PlanTier, number>;
 
 function normalizeYear(value: unknown): number {
@@ -97,12 +196,14 @@ export function normalizeTeamAiPromptLimits(
 type PlatformQuestionSettings = {
   questions: string[];
   aiPromptLimits: TeamAiPromptLimits;
+  formConfig: ScoutingFormConfig;
 };
 
 function parseQuestionSettingsPayload(value: unknown): PlatformQuestionSettings {
   const defaults = {
     questions: getDefaultScoutingAbilityQuestions(),
     aiPromptLimits: getDefaultTeamAiPromptLimits(),
+    formConfig: getDefaultScoutingFormConfig(),
   };
 
   if (!value) return defaults;
@@ -111,6 +212,7 @@ function parseQuestionSettingsPayload(value: unknown): PlatformQuestionSettings 
     return {
       questions: normalizeScoutingAbilityQuestions(value),
       aiPromptLimits: defaults.aiPromptLimits,
+      formConfig: defaults.formConfig,
     };
   }
 
@@ -122,24 +224,32 @@ function parseQuestionSettingsPayload(value: unknown): PlatformQuestionSettings 
     obj.scoutingAbilityQuestions ??
     obj.scouting_ability_questions;
   const aiLimitSource = obj.aiPromptLimits ?? obj.ai_prompt_limits;
+  const formConfigSource = obj.formConfig ?? obj.form_config;
 
   return {
     questions: normalizeScoutingAbilityQuestions(questionSource),
     aiPromptLimits: normalizeTeamAiPromptLimits(aiLimitSource),
+    formConfig: normalizeScoutingFormConfig(formConfigSource),
   };
 }
 
 export function serializeQuestionSettingsPayload({
   questions,
   aiPromptLimits,
+  formConfig,
 }: {
   questions: string[];
   aiPromptLimits: TeamAiPromptLimits;
+  formConfig?: ScoutingFormConfig;
 }): Json {
+  const normalized = formConfig
+    ? normalizeScoutingFormConfig(formConfig)
+    : getDefaultScoutingFormConfig();
   return {
     questions: normalizeScoutingAbilityQuestions(questions),
-    aiPromptLimits: normalizeTeamAiPromptLimits(aiPromptLimits),
-  };
+    aiPromptLimits: normalizeTeamAiPromptLimits(aiPromptLimits) as unknown as Json,
+    formConfig: JSON.parse(JSON.stringify(normalized)) as Json,
+  } as Json;
 }
 
 export async function getEventSyncMinYear(
@@ -200,4 +310,21 @@ export function getTeamAiLimitFromSettings(
 ): number {
   const normalizedPlan = normalizePlanTier(planTier);
   return limits[normalizedPlan];
+}
+
+export async function getScoutingFormConfig(
+  supabase: SupabaseClient<Database>
+): Promise<ScoutingFormConfig> {
+  const fallback = getDefaultScoutingFormConfig();
+
+  const { data, error } = await supabase
+    .from("platform_settings")
+    .select("scouting_ability_questions")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) return fallback;
+
+  return parseQuestionSettingsPayload(data?.scouting_ability_questions)
+    .formConfig;
 }

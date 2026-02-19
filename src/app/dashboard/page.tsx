@@ -212,8 +212,8 @@ export default async function DashboardPage() {
             </div>
           </StaggerChild>
 
-          <StaggerChild>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <StaggerChild className="flex">
+            <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
               {[
                 {
                   label: "Events Synced",
@@ -233,7 +233,7 @@ export default async function DashboardPage() {
               ].map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-2xl dashboard-panel dashboard-card p-4"
+                  className="flex items-center rounded-2xl dashboard-panel dashboard-card p-4"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">

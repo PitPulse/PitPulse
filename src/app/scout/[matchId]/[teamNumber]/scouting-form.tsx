@@ -15,21 +15,7 @@ import {
   type DraftFormData,
 } from "@/lib/offline-drafts";
 import type { Tables } from "@/types/supabase";
-
-const INTAKE_OPTIONS = [
-  { key: "depot", label: "Ground Intake" },
-  { key: "human_intake", label: "Human Intake" },
-] as const;
-
-type IntakeMethod = (typeof INTAKE_OPTIONS)[number]["key"];
-type ShootingRange = "close" | "mid" | "long";
-type ClimbLevel = "level_1" | "level_2" | "level_3";
-
-const CLIMB_LEVEL_OPTIONS = [
-  { key: "level_1", label: "Level 1" },
-  { key: "level_2", label: "Level 2" },
-  { key: "level_3", label: "Level 3" },
-] as const;
+import type { ScoutingFormConfig, FormOptionItem } from "@/lib/platform-settings";
 
 interface ScoutingFormProps {
   matchId: string;
@@ -38,6 +24,7 @@ interface ScoutingFormProps {
   userId: string;
   eventKey?: string | null;
   abilityQuestions: string[];
+  formConfig: ScoutingFormConfig;
   existing: Tables<"scouting_entries"> | null;
 }
 
@@ -58,83 +45,30 @@ function parseAbilityAnswers(
   return parsed;
 }
 
-function parseIntakeMethods(
-  value: Tables<"scouting_entries">["intake_methods"] | null | undefined
-): IntakeMethod[] {
+function parseStringArray(
+  value: unknown,
+  allowedKeys: Set<string>
+): string[] {
   if (!Array.isArray(value)) return [];
-  const allowed = new Set<IntakeMethod>(INTAKE_OPTIONS.map((option) => option.key));
   return Array.from(
     new Set(
       value.filter(
-        (item): item is IntakeMethod =>
-          typeof item === "string" && allowed.has(item as IntakeMethod)
+        (item): item is string =>
+          typeof item === "string" && allowedKeys.has(item)
       )
     )
   );
 }
 
-function parseShootingRanges(
-  rangesValue:
-    | Tables<"scouting_entries">["shooting_ranges"]
-    | null
-    | undefined,
-  singleValue: Tables<"scouting_entries">["shooting_range"] | null | undefined
-): ShootingRange[] {
-  const allowed = new Set<ShootingRange>(["close", "mid", "long"]);
+function parseStringArrayWithFallback(
+  arrayValue: unknown,
+  singleValue: unknown,
+  allowedKeys: Set<string>
+): string[] {
+  const result = parseStringArray(arrayValue, allowedKeys);
+  if (result.length > 0) return result;
 
-  if (Array.isArray(rangesValue)) {
-    const ranges = Array.from(
-      new Set(
-        rangesValue.filter(
-          (item): item is ShootingRange =>
-            typeof item === "string" && allowed.has(item as ShootingRange)
-        )
-      )
-    );
-    if (ranges.length > 0) {
-      return ranges;
-    }
-  }
-
-  if (
-    singleValue === "close" ||
-    singleValue === "mid" ||
-    singleValue === "long"
-  ) {
-    return [singleValue];
-  }
-
-  return [];
-}
-
-function parseClimbLevels(
-  levelsValue:
-    | Tables<"scouting_entries">["climb_levels"]
-    | null
-    | undefined,
-  singleValue: Tables<"scouting_entries">["endgame_state"] | null | undefined
-): ClimbLevel[] {
-  const allowed = new Set<ClimbLevel>(["level_1", "level_2", "level_3"]);
-
-  if (Array.isArray(levelsValue)) {
-    const levels = Array.from(
-      new Set(
-        levelsValue.filter(
-          (item): item is ClimbLevel =>
-            typeof item === "string" && allowed.has(item as ClimbLevel)
-        )
-      )
-    );
-    if (levels.length > 0) {
-      return levels;
-    }
-  }
-
-  if (
-    singleValue === "level_1" ||
-    singleValue === "level_2" ||
-    singleValue === "level_3"
-  ) {
+  if (typeof singleValue === "string" && allowedKeys.has(singleValue)) {
     return [singleValue];
   }
 
@@ -175,36 +109,43 @@ export function ScoutingForm({
   userId,
   eventKey,
   abilityQuestions,
+  formConfig,
   existing,
 }: ScoutingFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
+  // Build allowed key sets from config
+  const intakeKeys = useMemo(() => new Set(formConfig.intakeOptions.map((o) => o.key)), [formConfig.intakeOptions]);
+  const climbKeys = useMemo(() => new Set(formConfig.climbLevelOptions.map((o) => o.key)), [formConfig.climbLevelOptions]);
+  const shootingKeys = useMemo(() => new Set(formConfig.shootingRangeOptions.map((o) => o.key)), [formConfig.shootingRangeOptions]);
+  const startPositionSet = useMemo(() => new Set(formConfig.autoStartPositions), [formConfig.autoStartPositions]);
+
   const [autoScore, setAutoScore] = useState(existing?.auto_score ?? 0);
-  const [autoStartPosition, setAutoStartPosition] = useState<
-    "left" | "center" | "right" | null
-  >(() => {
-    const value = existing?.auto_start_position;
-    return value === "left" || value === "center" || value === "right"
-      ? value
-      : null;
-  });
-  const [shootingRanges, setShootingRanges] = useState<ShootingRange[]>(() =>
-    parseShootingRanges(existing?.shooting_ranges, existing?.shooting_range)
+  const [autoStartPosition, setAutoStartPosition] = useState<string | null>(
+    () => {
+      const value = existing?.auto_start_position;
+      return typeof value === "string" && startPositionSet.has(value)
+        ? value
+        : null;
+    }
+  );
+  const [shootingRanges, setShootingRanges] = useState<string[]>(() =>
+    parseStringArrayWithFallback(existing?.shooting_ranges, existing?.shooting_range, shootingKeys)
   );
   const [shootingReliability, setShootingReliability] = useState(
     existing?.shooting_reliability ?? 3
   );
   const [autoNotes, setAutoNotes] = useState(existing?.auto_notes ?? "");
   const [teleopScore, setTeleopScore] = useState(existing?.teleop_score ?? 0);
-  const [intakeMethods, setIntakeMethods] = useState<IntakeMethod[]>(() =>
-    parseIntakeMethods(existing?.intake_methods)
+  const [intakeMethods, setIntakeMethods] = useState<string[]>(() =>
+    parseStringArray(existing?.intake_methods, intakeKeys)
   );
   const [endgameScore, setEndgameScore] = useState(
     existing?.endgame_score ?? 0
   );
-  const [climbLevels, setClimbLevels] = useState<ClimbLevel[]>(() =>
-    parseClimbLevels(existing?.climb_levels, existing?.endgame_state)
+  const [climbLevels, setClimbLevels] = useState<string[]>(() =>
+    parseStringArrayWithFallback(existing?.climb_levels, existing?.endgame_state, climbKeys)
   );
   const [defenseRating, setDefenseRating] = useState(
     existing?.defense_rating ?? 3
@@ -259,19 +200,30 @@ export function ScoutingForm({
       const d = draft.form_data;
       setAutoScore(d.auto_score);
       setAutoStartPosition(
-        d.auto_start_position === "left" ||
-          d.auto_start_position === "center" ||
-          d.auto_start_position === "right"
+        typeof d.auto_start_position === "string" &&
+          startPositionSet.has(d.auto_start_position)
           ? d.auto_start_position
           : null
       );
       setAutoNotes(d.auto_notes);
-      setShootingRanges(d.shooting_ranges as ShootingRange[]);
+      setShootingRanges(
+        Array.isArray(d.shooting_ranges)
+          ? d.shooting_ranges.filter((r: string) => shootingKeys.has(r))
+          : []
+      );
       setShootingReliability(d.shooting_reliability);
       setTeleopScore(d.teleop_score);
-      setIntakeMethods(d.intake_methods as IntakeMethod[]);
+      setIntakeMethods(
+        Array.isArray(d.intake_methods)
+          ? d.intake_methods.filter((m: string) => intakeKeys.has(m))
+          : []
+      );
       setEndgameScore(d.endgame_score);
-      setClimbLevels(d.climb_levels as ClimbLevel[]);
+      setClimbLevels(
+        Array.isArray(d.climb_levels)
+          ? d.climb_levels.filter((l: string) => climbKeys.has(l))
+          : []
+      );
       setDefenseRating(d.defense_rating);
       setCycleTimeRating(d.cycle_time_rating);
       setReliabilityRating(d.reliability_rating);
@@ -592,7 +544,7 @@ export function ScoutingForm({
   }
 
   return (
-      <div className="space-y-6 overflow-x-hidden pb-8">
+      <div className="space-y-6 overflow-x-clip pb-8">
       {error && (
         <div role="alert" className="rounded-md border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
@@ -683,12 +635,13 @@ export function ScoutingForm({
             <CounterButton label="Points" value={autoScore} onChange={setAutoScore} />
           </div>
 
+          {formConfig.autoStartPositions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
               Starting Route
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              {(["left", "center", "right"] as const).map((route) => (
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(formConfig.autoStartPositions.length, 4)}, minmax(0, 1fr))` }}>
+              {formConfig.autoStartPositions.map((route) => (
                 <button
                   key={route}
                   type="button"
@@ -704,6 +657,7 @@ export function ScoutingForm({
               ))}
             </div>
           </div>
+          )}
 
           <div className="space-y-2">
             <label htmlFor="auto-comments" className="text-xs font-semibold uppercase tracking-widest text-gray-400">
@@ -739,13 +693,14 @@ export function ScoutingForm({
           />
         </div>
 
+        {formConfig.intakeOptions.length > 0 && (
         <div className="mt-4 space-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
             Intake Method
           </p>
           <p className="text-[11px] text-gray-500">Multi-select</p>
-          <div className="grid grid-cols-2 gap-2">
-            {INTAKE_OPTIONS.map((option) => {
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(formConfig.intakeOptions.length, 3)}, minmax(0, 1fr))` }}>
+            {formConfig.intakeOptions.map((option) => {
               const active = intakeMethods.includes(option.key);
               return (
                 <button
@@ -770,6 +725,7 @@ export function ScoutingForm({
             })}
           </div>
         </div>
+        )}
       </section>
 
       {/* Endgame Section */}
@@ -790,13 +746,14 @@ export function ScoutingForm({
           />
         </div>
 
+        {formConfig.climbLevelOptions.length > 0 && (
         <div className="mt-4 space-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
             Climb
           </p>
           <p className="text-[11px] text-gray-500">Multi-select</p>
-          <div className="grid grid-cols-3 gap-2">
-            {CLIMB_LEVEL_OPTIONS.map((option) => {
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(formConfig.climbLevelOptions.length, 4)}, minmax(0, 1fr))` }}>
+            {formConfig.climbLevelOptions.map((option) => {
               const active = climbLevels.includes(option.key);
               return (
                 <button
@@ -821,6 +778,7 @@ export function ScoutingForm({
             })}
           </div>
         </div>
+        )}
       </section>
 
       {/* Ratings Section */}
@@ -834,17 +792,14 @@ export function ScoutingForm({
           Ratings
         </h2>
         <div className="space-y-4">
+          {formConfig.shootingRangeOptions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
               Shooting Range
             </p>
             <p className="text-[11px] text-gray-500">Multi-select</p>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                { key: "close", label: "Close" },
-                { key: "mid", label: "Mid" },
-                { key: "long", label: "Long" },
-              ] as const).map((range) => (
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(formConfig.shootingRangeOptions.length, 4)}, minmax(0, 1fr))` }}>
+              {formConfig.shootingRangeOptions.map((range) => (
                 <button
                   key={`ratings-${range.key}`}
                   type="button"
@@ -866,28 +821,27 @@ export function ScoutingForm({
               ))}
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
-            <StarRating
-              label="Defense Ability"
-              value={defenseRating}
-              onChange={setDefenseRating}
-            />
-            <StarRating
-              label="Cycle Time"
-              value={cycleTimeRating}
-              onChange={setCycleTimeRating}
-            />
-            <StarRating
-              label="Auto Shooting Reliability"
-              value={shootingReliability}
-              onChange={setShootingReliability}
-            />
-            <StarRating
-              label="Overall Reliability"
-              value={reliabilityRating}
-              onChange={setReliabilityRating}
-            />
+            {formConfig.ratingFields.map((field) => {
+              const ratingMap: Record<string, [number, (v: number) => void]> = {
+                defense: [defenseRating, setDefenseRating],
+                cycle_time: [cycleTimeRating, setCycleTimeRating],
+                shooting_reliability: [shootingReliability, setShootingReliability],
+                reliability: [reliabilityRating, setReliabilityRating],
+              };
+              const entry = ratingMap[field.key];
+              if (!entry) return null;
+              return (
+                <StarRating
+                  key={field.key}
+                  label={field.label}
+                  value={entry[0]}
+                  onChange={entry[1]}
+                />
+              );
+            })}
           </div>
         </div>
       </section>

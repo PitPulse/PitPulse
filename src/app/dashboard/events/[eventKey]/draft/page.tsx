@@ -37,7 +37,7 @@ export default async function DraftRoomPage({
     return (
       <div className="min-h-screen dashboard-page">
         <Navbar />
-        <main className="mx-auto max-w-3xl px-4 pb-12 pt-28">
+        <main className="mx-auto max-w-3xl px-4 pb-12 pt-32">
           <div className="rounded-2xl dashboard-panel p-8 text-center">
             <p className="text-gray-400">
               Event not found. Sync it first from the dashboard.
@@ -104,7 +104,7 @@ export default async function DraftRoomPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 pb-12 pt-28 space-y-6">
+      <main className="mx-auto max-w-7xl px-4 pb-12 pt-32 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">

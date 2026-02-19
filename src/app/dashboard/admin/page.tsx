@@ -5,6 +5,7 @@ import { AdminPanel } from "./admin-panel";
 import {
   getEventSyncMinYear,
   getScoutingAbilityQuestions,
+  getScoutingFormConfig,
   getTeamAiPromptLimits,
 } from "@/lib/platform-settings";
 
@@ -108,10 +109,11 @@ export default async function AdminPage() {
     messages: aggregateByDay(messagesTimeRes.data),
   };
 
-  const [eventSyncMinYear, scoutingAbilityQuestions, teamAiPromptLimits] = await Promise.all([
+  const [eventSyncMinYear, scoutingAbilityQuestions, teamAiPromptLimits, scoutingFormConfig] = await Promise.all([
     getEventSyncMinYear(supabase),
     getScoutingAbilityQuestions(supabase),
     getTeamAiPromptLimits(supabase),
+    getScoutingFormConfig(supabase),
   ]);
 
   return (
@@ -133,6 +135,7 @@ export default async function AdminPage() {
         eventSyncMinYear={eventSyncMinYear}
         scoutingAbilityQuestions={scoutingAbilityQuestions}
         teamAiPromptLimits={teamAiPromptLimits}
+        scoutingFormConfig={scoutingFormConfig}
         adminName={profile.display_name ?? user.email ?? "Admin"}
         adminEmail={user.email ?? ""}
       />

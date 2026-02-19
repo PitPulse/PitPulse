@@ -1,7 +1,7 @@
 export default function EventLoading() {
   return (
     <div className="min-h-screen dashboard-page">
-      <div className="mx-auto max-w-6xl px-4 pt-28">
+      <div className="mx-auto max-w-6xl px-4 pt-32">
         <div className="h-7 w-56 animate-pulse rounded-md bg-white/10" />
         <div className="mt-2 h-4 w-32 animate-pulse rounded bg-white/5" />
       </div>

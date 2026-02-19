@@ -15,6 +15,8 @@ import { AnnouncementsTab } from "./tabs/announcements-tab";
 import { InboxTab } from "./tabs/inbox-tab";
 import { TestimonialsTab } from "./tabs/testimonials-tab";
 import { TeamsTab } from "./tabs/teams-tab";
+import { ScoutingTab } from "./tabs/scouting-tab";
+import type { ScoutingFormConfig } from "@/lib/platform-settings";
 
 /* ── Types ── */
 
@@ -85,14 +87,16 @@ interface AdminPanelProps {
     free: number;
     supporter: number;
   };
+  scoutingFormConfig: ScoutingFormConfig;
   adminName: string;
   adminEmail: string;
 }
 
-type Tab = "overview" | "analytics" | "announcements" | "inbox" | "testimonials" | "teams";
+type Tab = "overview" | "scouting" | "analytics" | "announcements" | "inbox" | "testimonials" | "teams";
 
 const tabs: { key: Tab; label: string; icon: string }[] = [
   { key: "overview", label: "Overview", icon: "grid" },
+  { key: "scouting", label: "Scouting Form", icon: "clipboard" },
   { key: "analytics", label: "Analytics", icon: "chart" },
   { key: "announcements", label: "Announcements", icon: "megaphone" },
   { key: "inbox", label: "Inbox", icon: "mail" },
@@ -153,6 +157,16 @@ function SidebarIcon({ type }: { type: string }) {
           <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3" />
         </svg>
       );
+    case "clipboard":
+      return (
+        <svg {...props}>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+          <path d="M9 14h6" />
+          <path d="M9 18h6" />
+          <path d="M9 10h6" />
+        </svg>
+      );
     case "users":
       return (
         <svg {...props}>
@@ -179,6 +193,7 @@ export function AdminPanel({
   eventSyncMinYear,
   scoutingAbilityQuestions,
   teamAiPromptLimits,
+  scoutingFormConfig,
   adminName,
   adminEmail,
 }: AdminPanelProps) {
@@ -233,8 +248,14 @@ export function AdminPanel({
           <OverviewTab
             stats={stats}
             eventSyncMinYear={eventSyncMinYear}
-            scoutingAbilityQuestions={scoutingAbilityQuestions}
             teamAiPromptLimits={teamAiPromptLimits}
+          />
+        );
+      case "scouting":
+        return (
+          <ScoutingTab
+            scoutingAbilityQuestions={scoutingAbilityQuestions}
+            formConfig={scoutingFormConfig}
           />
         );
       case "analytics":
@@ -251,7 +272,7 @@ export function AdminPanel({
   }
 
   return (
-    <div className="admin-shell dashboard-page flex min-h-screen pt-14">
+    <div className="admin-shell dashboard-page flex min-h-screen pt-16">
       {/* Mobile sidebar toggle */}
       <button
         type="button"

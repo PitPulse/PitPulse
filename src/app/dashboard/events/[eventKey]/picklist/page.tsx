@@ -94,7 +94,7 @@ export default async function PickListPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
-      <main className="mx-auto max-w-6xl px-4 pb-12 pt-28 space-y-6">
+      <main className="mx-auto max-w-6xl px-4 pb-12 pt-32 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">

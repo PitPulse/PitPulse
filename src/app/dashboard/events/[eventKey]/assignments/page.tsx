@@ -79,7 +79,7 @@ export default async function AssignmentsPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 pb-12 pt-28">
+      <main className="mx-auto max-w-7xl px-4 pb-12 pt-32">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">

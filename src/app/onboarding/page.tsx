@@ -126,7 +126,7 @@ export default function OnboardingPage() {
         <div className="absolute -bottom-40 left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-teal-400/10 blur-3xl" />
       </div>
 
-      <div className="marketing-content mx-auto flex min-h-screen max-w-4xl items-center px-4 pb-16 pt-28">
+      <div className="marketing-content mx-auto flex min-h-screen max-w-4xl items-center px-4 pb-16 pt-32">
         <form
           onSubmit={handleSubmit}
           className="marketing-card w-full rounded-3xl border border-white/10 p-6 sm:p-8"

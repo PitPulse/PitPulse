@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   resetAllTeamAiCooldowns,
   updateEventSyncMinYear,
-  updateScoutingAbilityQuestions,
   updateTeamAiPromptLimits,
 } from "@/lib/staff-actions";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ interface OverviewTabProps {
     events: number;
   };
   eventSyncMinYear: number;
-  scoutingAbilityQuestions: string[];
   teamAiPromptLimits: {
     free: number;
     supporter: number;
@@ -31,15 +29,11 @@ interface OverviewTabProps {
 export function OverviewTab({
   stats,
   eventSyncMinYear,
-  scoutingAbilityQuestions,
   teamAiPromptLimits,
 }: OverviewTabProps) {
   const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [questions, setQuestions] = useState<string[]>(
-    scoutingAbilityQuestions.length > 0 ? scoutingAbilityQuestions : [""]
-  );
   const [freeLimit, setFreeLimit] = useState(teamAiPromptLimits.free);
   const [supporterLimit, setSupporterLimit] = useState(teamAiPromptLimits.supporter);
   const aiWindowHours = Math.round(TEAM_AI_WINDOW_MS / (60 * 60 * 1000));
@@ -51,24 +45,6 @@ export function OverviewTab({
       return;
     }
     setStatus("Event sync window updated.");
-    startTransition(() => router.refresh());
-  }
-
-  async function handleSaveScoutingQuestions() {
-    const normalized = questions
-      .map((question) => question.trim().replace(/\s+/g, " "))
-      .filter((question) => question.length > 0);
-
-    const formData = new FormData();
-    formData.set("questionsJson", JSON.stringify(normalized));
-
-    const result = await updateScoutingAbilityQuestions(formData);
-    if (result?.error) {
-      setStatus(result.error);
-      return;
-    }
-
-    setStatus("Scouting list updated.");
     startTransition(() => router.refresh());
   }
 
@@ -317,89 +293,6 @@ export function OverviewTab({
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl dashboard-panel dashboard-card p-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-300">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 11h6" />
-              <path d="M9 15h6" />
-              <path d="M5 7h14" />
-              <path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold text-white">Scouting List Builder</h3>
-            <p className="mt-1 text-sm text-gray-400">
-              Add yes/no ability questions shown on every scouting form.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {questions.map((question, index) => (
-            <div key={`question-${index}`} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={question}
-                onChange={(e) =>
-                  setQuestions((prev) =>
-                    prev.map((item, itemIndex) =>
-                      itemIndex === index ? e.target.value : item
-                    )
-                  )
-                }
-                placeholder="e.g. Can cross the charge station?"
-                className="dashboard-input w-full px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setQuestions((prev) =>
-                    prev.length <= 1
-                      ? [""]
-                      : prev.filter((_, itemIndex) => itemIndex !== index)
-                  )
-                }
-                className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setQuestions((prev) => [...prev, ""])}
-          >
-            Add question
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            loading={isPending}
-            onClick={handleSaveScoutingQuestions}
-          >
-            Save scouting list
-          </Button>
-          <p className="text-xs text-gray-500">
-            These render as Yes/No ability toggles on scout forms.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

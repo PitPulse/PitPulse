@@ -1,7 +1,7 @@
 export default function AnalyticsLoading() {
   return (
     <div className="min-h-screen dashboard-page">
-      <div className="mx-auto max-w-5xl px-4 pt-28">
+      <div className="mx-auto max-w-5xl px-4 pt-32">
         <div className="h-3 w-40 animate-pulse rounded bg-white/10" />
         <div className="mt-2 h-6 w-56 animate-pulse rounded bg-white/15" />
       </div>

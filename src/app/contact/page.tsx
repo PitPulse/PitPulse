@@ -13,7 +13,7 @@ export default function ContactPage() {
     <div className="marketing-shell text-white">
       <Navbar />
 
-      <main className="marketing-content mx-auto max-w-5xl px-4 pb-16 pt-28">
+      <main className="marketing-content mx-auto max-w-5xl px-4 pb-16 pt-32">
         <div className="marketing-card relative overflow-hidden rounded-3xl p-8">
           <div className="pointer-events-none absolute -top-20 right-0 h-48 w-48 rounded-full bg-teal-500/20 blur-3xl" />
           <div className="pointer-events-none absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-500/10 blur-3xl" />
