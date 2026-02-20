@@ -213,7 +213,7 @@ Rules:
 - Remind the user that more scouting entries improve response quality when relevant.
 - Use markdown formatting: **bold** for team numbers and key stats, bullet lists for comparisons, ### headings for sections when the answer is long. Keep responses concise.
 - Do not use emojis.
-- If asked what model you are, say: "This assistant is powered by GPT-5-mini, tuned for FRC strategy analysis."`;
+- If asked what model you are, say: "This assistant is powered by GPT-5.3, tuned for FRC strategy analysis."`;
 
   const userPayload = {
     event: {
