@@ -213,7 +213,7 @@ Rules:
 - Remind the user that more scouting entries improve response quality when relevant.
 - Use markdown formatting: **bold** for team numbers and key stats, bullet lists for comparisons, ### headings for sections when the answer is long. Keep responses concise.
 - Do not use emojis.
-- If asked what model you are, say: "This assistant is powered by GPT-5.3, tuned for FRC strategy analysis."`;
+- If asked what model you are, say: "This assistant is powered by GPT-5, tuned for FRC strategy analysis."`;
 
   const userPayload = {
     event: {
@@ -242,11 +242,28 @@ Rules:
     // Append the new question
     openaiMessages.push({ role: "user", content: message });
 
-    const textOutput = await chatCompletion(apiKey, {
-      messages: openaiMessages,
-      max_tokens: 700,
-      reasoning_effort: "low",
-    });
+    let textOutput: string;
+    try {
+      textOutput = await chatCompletion(apiKey, {
+        model: "gpt-5-mini",
+        messages: openaiMessages,
+        max_tokens: 700,
+        reasoning_effort: "low",
+      });
+    } catch (firstError) {
+      const errorMessage =
+        firstError instanceof Error ? firstError.message : String(firstError);
+      if (!errorMessage.toLowerCase().includes("no text response from openai")) {
+        throw firstError;
+      }
+
+      textOutput = await chatCompletion(apiKey, {
+        model: "gpt-5-mini",
+        messages: openaiMessages,
+        max_tokens: 950,
+        reasoning_effort: "low",
+      });
+    }
 
     return NextResponse.json(
       { success: true, reply: textOutput },
