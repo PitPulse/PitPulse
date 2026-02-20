@@ -15,7 +15,7 @@ PitPilot is an FRC scouting and strategy platform built with Next.js + Supabase.
 - Next.js (App Router) + TypeScript
 - Tailwind CSS
 - Supabase (Postgres/Auth/Realtime)
-- Anthropic Claude API
+- OpenAI API
 - The Blue Alliance API
 
 ## Local Setup
