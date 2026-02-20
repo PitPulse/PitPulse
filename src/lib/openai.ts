@@ -28,11 +28,54 @@ export type OpenAIChatOptions = {
 };
 
 type OpenAIChatResponse = {
+  output_text?: string | null;
+  output?: Array<{
+    content?: Array<{
+      type?: string;
+      text?: string | null;
+    }>;
+  }>;
   choices: Array<{
-    message: { role: string; content: string | null };
+    message: {
+      role: string;
+      content:
+        | string
+        | Array<{
+            type?: string;
+            text?: string | null;
+          }>
+        | null;
+      refusal?: string | null;
+    };
     finish_reason: string;
   }>;
 };
+
+function normalizeText(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  return "";
+}
+
+function joinTextParts(parts: unknown): string {
+  if (!Array.isArray(parts)) return "";
+  const chunks: string[] = [];
+  for (const part of parts) {
+    if (typeof part === "string") {
+      const text = part.trim();
+      if (text) chunks.push(text);
+      continue;
+    }
+    if (!part || typeof part !== "object") continue;
+    const candidate = (part as { text?: unknown }).text;
+    if (typeof candidate === "string") {
+      const text = candidate.trim();
+      if (text) chunks.push(text);
+    }
+  }
+  return chunks.join("\n").trim();
+}
 
 /**
  * Calls the OpenAI Chat Completions API and returns the assistant's text.
@@ -69,10 +112,29 @@ export async function chatCompletion(
   }
 
   const data = (await res.json()) as OpenAIChatResponse;
-  const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+  const firstChoice = data.choices?.[0];
+
+  const fromChoiceContent =
+    normalizeText(firstChoice?.message?.content) ||
+    joinTextParts(firstChoice?.message?.content);
+
+  const fromChoiceRefusal = normalizeText(firstChoice?.message?.refusal);
+  const fromOutputText = normalizeText(data.output_text);
+
+  const fromOutputArray = Array.isArray(data.output)
+    ? data.output
+        .map((item) => joinTextParts(item?.content))
+        .filter(Boolean)
+        .join("\n")
+        .trim()
+    : "";
+
+  const text =
+    fromChoiceContent || fromChoiceRefusal || fromOutputText || fromOutputArray;
 
   if (!text) {
-    throw new Error("No text response from OpenAI");
+    const finishReason = firstChoice?.finish_reason ?? "unknown";
+    throw new Error(`No text response from OpenAI (finish_reason: ${finishReason})`);
   }
 
   return text;
