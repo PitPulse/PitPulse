@@ -69,7 +69,7 @@ function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
-function TeamBriefMarkdown({ markdown }: { markdown: string }) {
+function TeamBriefMarkdown({ markdown, animate = false }: { markdown: string; animate?: boolean }) {
   const elements = useMemo(() => {
     const lines = markdown.replace(/\r\n/g, "\n").split("\n");
     const blocks: ReactNode[] = [];
@@ -221,7 +221,24 @@ function TeamBriefMarkdown({ markdown }: { markdown: string }) {
     return blocks;
   }, [markdown]);
 
-  return <div className="ai-brief-markdown">{elements}</div>;
+  if (!animate) {
+    return <div className="ai-brief-markdown">{elements}</div>;
+  }
+
+  return (
+    <div className="ai-brief-markdown">
+      {elements.map((element, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: i * 0.06, ease: "easeOut" }}
+        >
+          {element}
+        </motion.div>
+      ))}
+    </div>
+  );
 }
 
 export function TeamAIBriefButton({
@@ -239,6 +256,7 @@ export function TeamAIBriefButton({
   const [brief, setBrief] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generateBurst, setGenerateBurst] = useState(0);
+  const [freshlyGenerated, setFreshlyGenerated] = useState(false);
   const cacheKey = useMemo(
     () => `scoutai:team-brief:v1:${eventKey}:${teamNumber}`,
     [eventKey, teamNumber]
@@ -325,6 +343,7 @@ export function TeamAIBriefButton({
         );
       }
       setBrief(data.reply as string);
+      setFreshlyGenerated(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate briefing");
     } finally {
@@ -461,7 +480,7 @@ export function TeamAIBriefButton({
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <TeamBriefMarkdown markdown={brief} />
+                    <TeamBriefMarkdown markdown={brief} animate={freshlyGenerated} />
                   </motion.div>
                 )}
               </AnimatePresence>

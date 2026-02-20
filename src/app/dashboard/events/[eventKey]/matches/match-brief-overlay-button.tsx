@@ -39,6 +39,7 @@ export function MatchBriefOverlayButton({
   const [brief, setBrief] = useState<BriefContent | null>(null);
   const [hasBriefState, setHasBriefState] = useState(hasBrief);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [freshlyGenerated, setFreshlyGenerated] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -101,6 +102,7 @@ export function MatchBriefOverlayButton({
       setBrief(data.brief as BriefContent);
       setGeneratedAt(new Date().toISOString());
       setHasBriefState(true);
+      setFreshlyGenerated(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate brief");
     } finally {
@@ -233,7 +235,10 @@ export function MatchBriefOverlayButton({
 
             {!fetching && !loading && brief && (
               <div className="mt-4 max-h-[72vh] space-y-5 overflow-y-auto pr-1">
-                <div className="rounded-2xl dashboard-panel p-5">
+                <motion.div
+                  className="rounded-2xl dashboard-panel p-5"
+                  {...(freshlyGenerated ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, delay: 0.05 } } : {})}
+                >
                   <h4 className="mb-3 text-base font-semibold text-white">Match Prediction</h4>
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-center">
@@ -261,9 +266,12 @@ export function MatchBriefOverlayButton({
                       <p className="text-xs text-gray-400">{blueTeams.join(", ")}</p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <motion.div
+                  className="grid gap-4 md:grid-cols-2"
+                  {...(freshlyGenerated ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, delay: 0.15 } } : {})}
+                >
                   <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
                     <h5 className="mb-2 text-sm font-semibold text-red-200">Red Alliance</h5>
                     <p className="mb-2 text-xs text-gray-200">
@@ -301,9 +309,12 @@ export function MatchBriefOverlayButton({
                       ))}
                     </ul>
                   </div>
-                </div>
+                </motion.div>
 
-                <div className="rounded-2xl dashboard-panel p-5">
+                <motion.div
+                  className="rounded-2xl dashboard-panel p-5"
+                  {...(freshlyGenerated ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, delay: 0.25 } } : {})}
+                >
                   <h4 className="mb-3 text-base font-semibold text-white">Team Analysis</h4>
                   <div className="space-y-3">
                     {brief.teamAnalysis.map((team) => (
@@ -332,9 +343,12 @@ export function MatchBriefOverlayButton({
                       </div>
                     ))}
                   </div>
-                </div>
+                </motion.div>
 
-                <div className="rounded-2xl dashboard-panel p-5">
+                <motion.div
+                  className="rounded-2xl dashboard-panel p-5"
+                  {...(freshlyGenerated ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, delay: 0.35 } } : {})}
+                >
                   <h4 className="mb-3 text-base font-semibold text-white">Scout Focus</h4>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
@@ -371,9 +385,12 @@ export function MatchBriefOverlayButton({
                       )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
-                <div className="rounded-2xl dashboard-panel p-5">
+                <motion.div
+                  className="rounded-2xl dashboard-panel p-5"
+                  {...(freshlyGenerated ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, delay: 0.45 } } : {})}
+                >
                   <h4 className="mb-3 text-base font-semibold text-white">Strategy Recommendations</h4>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
@@ -403,7 +420,7 @@ export function MatchBriefOverlayButton({
                       </ul>
                     </div>
                   )}
-                </div>
+                </motion.div>
               </div>
             )}
 

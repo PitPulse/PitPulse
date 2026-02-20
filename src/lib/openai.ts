@@ -30,12 +30,14 @@ export type OpenAIChatOptions = {
 type OpenAIChatResponse = {
   output_text?: string | null;
   output?: Array<{
+    type?: string;
     content?: Array<{
       type?: string;
       text?: string | null;
     }>;
+    text?: string | null;
   }>;
-  choices: Array<{
+  choices?: Array<{
     message: {
       role: string;
       content:
@@ -121,13 +123,25 @@ export async function chatCompletion(
   const fromChoiceRefusal = normalizeText(firstChoice?.message?.refusal);
   const fromOutputText = normalizeText(data.output_text);
 
-  const fromOutputArray = Array.isArray(data.output)
-    ? data.output
-        .map((item) => joinTextParts(item?.content))
-        .filter(Boolean)
-        .join("\n")
-        .trim()
-    : "";
+  // Handle output array - GPT-5 models may return output[] with either
+  // nested content arrays or direct text fields on message-type items
+  let fromOutputArray = "";
+  if (Array.isArray(data.output)) {
+    const parts: string[] = [];
+    for (const item of data.output) {
+      if (!item || typeof item !== "object") continue;
+      // Direct text field on the output item
+      const directText = normalizeText(item.text);
+      if (directText) {
+        parts.push(directText);
+        continue;
+      }
+      // Nested content array
+      const nested = joinTextParts(item.content);
+      if (nested) parts.push(nested);
+    }
+    fromOutputArray = parts.join("\n").trim();
+  }
 
   const text =
     fromChoiceContent || fromChoiceRefusal || fromOutputText || fromOutputArray;

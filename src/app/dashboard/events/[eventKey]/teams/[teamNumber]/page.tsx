@@ -7,6 +7,7 @@ import { TeamAIBriefButton } from "./team-ai-brief-button";
 import { TeamDetailCharts } from "./team-detail-charts";
 import { ExportCsvButton } from "@/components/export-csv-button";
 import { getScoutingFormConfig, buildLabelMap, resolveLabels } from "@/lib/platform-settings";
+import { RealtimeScoutingSection } from "./realtime-scouting-section";
 
 export async function generateMetadata({
   params,
@@ -241,6 +242,11 @@ export default async function TeamDetailPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
+      <RealtimeScoutingSection
+        orgId={profile.org_id}
+        matchIds={matchIds}
+        initialEntryIds={entries.map((e) => e.id)}
+      >
       <main className="mx-auto max-w-4xl px-4 pb-12 pt-32 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -745,6 +751,7 @@ export default async function TeamDetailPage({
           </div>
         )}
       </main>
+      </RealtimeScoutingSection>
     </div>
   );
 }

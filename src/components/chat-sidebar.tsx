@@ -23,7 +23,7 @@ const SUGGESTION_PROMPTS = [
   "Which teams are underrated sleepers?",
 ];
 
-/* ── Thinking phrases (Claude Code style) ─────────────────────── */
+/* ── Thinking phrases (rotating animation) ────────────────────── */
 
 const THINKING_PHRASES = [
   "Analyzing team data",
@@ -34,6 +34,17 @@ const THINKING_PHRASES = [
   "Comparing alliances",
   "Running simulations",
 ];
+
+function useThinkingPhrase() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
+    }, 2400);
+    return () => clearInterval(interval);
+  }, []);
+  return THINKING_PHRASES[index];
+}
 
 /* ── Chat session cache (sessionStorage per event) ────────────── */
 
@@ -132,33 +143,40 @@ function SparkleIcon({ className }: { className?: string }) {
   );
 }
 
-/* ── Thinking indicator (Claude Code style) ───────────────────── */
+/* ── Thinking indicator (rotating phrases) ────────────────────── */
 
-function ThinkingIndicator({ streaming }: { streaming: boolean }) {
-  const phrase = THINKING_PHRASES[0];
-
-  if (streaming) return null;
+function ThinkingIndicator() {
+  const phrase = useThinkingPhrase();
 
   return (
     <div className="flex items-start gap-2">
       <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20">
-        <SparkleIcon className="h-3 w-3 animate-pulse text-blue-300" />
+        <SparkleIcon className="h-3 w-3 text-blue-300" />
       </span>
       <div className="rounded-2xl bg-white/[0.06] px-4 py-3">
-        <motion.span
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex items-center gap-2 text-sm text-gray-400"
-        >
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
-          <span>{phrase}</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-1 w-1 rounded-full bg-blue-300 [animation:ping_1.2s_ease-in-out_infinite]" />
-            <span className="h-1 w-1 rounded-full bg-blue-300 [animation:ping_1.2s_ease-in-out_150ms_infinite]" />
-            <span className="h-1 w-1 rounded-full bg-blue-300 [animation:ping_1.2s_ease-in-out_300ms_infinite]" />
+        <div className="flex items-center gap-2.5 text-sm text-gray-400">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
           </span>
-        </motion.span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={phrase}
+              initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="inline-block"
+            >
+              {phrase}
+            </motion.span>
+          </AnimatePresence>
+          <span className="inline-flex items-center gap-0.5">
+            <span className="h-1 w-1 animate-bounce rounded-full bg-blue-300 [animation-delay:0ms]" />
+            <span className="h-1 w-1 animate-bounce rounded-full bg-blue-300 [animation-delay:150ms]" />
+            <span className="h-1 w-1 animate-bounce rounded-full bg-blue-300 [animation-delay:300ms]" />
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -201,8 +219,10 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     return !cached || cached.length <= 1;
   });
   const [usageHint, setUsageHint] = useState<string | null>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const usageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Resizable width
@@ -247,10 +267,27 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     }
   }, [messages, eventKey]);
 
-  // Auto-scroll on new messages or streaming content
+  // Track whether user has scrolled up from the bottom
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollDown(distanceFromBottom > 80);
+  }, []);
+
+  // Auto-scroll on new messages or streaming content (only if near bottom)
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 120) {
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, loading, streamingContent]);
+
+  const scrollToBottom = useCallback(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   // Focus input when sidebar opens
   useEffect(() => {
@@ -435,11 +472,19 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
             className="relative flex h-full flex-col border-l border-white/10 bg-[#0a0f1a]/98 shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
             style={{ width: `${width}px` }}
           >
-            {/* Resize handle (left edge) */}
+            {/* Resize handle (left edge) with grip dots */}
             <div
               onMouseDown={handleResizeStart}
-              className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize transition-colors hover:bg-blue-500/30"
-            />
+              className="group absolute left-0 top-0 z-10 flex h-full w-3 cursor-col-resize items-center justify-center transition-colors hover:bg-blue-500/10"
+            >
+              <div className="flex flex-col items-center gap-1 rounded-full bg-white/[0.06] px-0.5 py-3 opacity-40 transition-opacity group-hover:bg-blue-500/20 group-hover:opacity-100">
+                <span className="h-1 w-1 rounded-full bg-gray-400 group-hover:bg-blue-300" />
+                <span className="h-1 w-1 rounded-full bg-gray-400 group-hover:bg-blue-300" />
+                <span className="h-1 w-1 rounded-full bg-gray-400 group-hover:bg-blue-300" />
+                <span className="h-1 w-1 rounded-full bg-gray-400 group-hover:bg-blue-300" />
+                <span className="h-1 w-1 rounded-full bg-gray-400 group-hover:bg-blue-300" />
+              </div>
+            </div>
 
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
@@ -465,7 +510,11 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="relative flex-1 overflow-y-auto px-5 py-4 space-y-4"
+            >
               {messages.map((message, index) => (
                 <div
                   key={index}
@@ -533,11 +582,31 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
 
               {/* Thinking indicator (before tokens arrive) */}
               {loading && !streamingContent && (
-                <ThinkingIndicator streaming={streaming} />
+                <ThinkingIndicator />
               )}
 
               <div ref={endRef} />
             </div>
+
+            {/* Scroll to bottom button */}
+            <AnimatePresence>
+              {showScrollDown && (
+                <motion.button
+                  type="button"
+                  onClick={scrollToBottom}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-28 left-1/2 z-20 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-white/15 bg-[#0a0f1a]/90 text-gray-300 shadow-lg backdrop-blur-sm transition hover:bg-white/10 hover:text-white"
+                  aria-label="Scroll to latest message"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </motion.button>
+              )}
+            </AnimatePresence>
 
             {/* Input area */}
             <div className="border-t border-white/10 px-5 py-4">
@@ -590,7 +659,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                 </button>
               </div>
               <p className="mt-2 text-[10px] text-gray-600">
-                Enter to send · Shift+Enter for newline · Drag left edge to resize
+                Enter to send · Shift+Enter for newline
               </p>
             </div>
           </motion.div>
