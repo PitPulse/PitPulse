@@ -797,7 +797,7 @@ export function DraftRoom({
   return (
     <div className="space-y-6">
       {/* Draft status bar */}
-      <div className="rounded-2xl dashboard-panel p-4">
+      <div data-tour="draft-status" className="rounded-2xl dashboard-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             {/* On the clock */}
@@ -933,7 +933,7 @@ export function DraftRoom({
       <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
         {/* Left: AI guidance */}
         <section className="space-y-4">
-          <div className="rounded-2xl dashboard-panel p-5 space-y-3">
+          <div data-tour="draft-best-available" className="rounded-2xl dashboard-panel p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -1072,6 +1072,7 @@ export function DraftRoom({
 
           {/* Available Pool */}
           <div
+            data-tour="draft-pool"
             onDragEnter={handlePoolDragEnter}
             onDragOver={handlePoolDragOver}
             onDragLeave={handlePoolDragLeave}
@@ -1167,7 +1168,7 @@ export function DraftRoom({
         {/* Right: Draft board */}
         <section className="space-y-4">
           {/* Alliance grid */}
-          <div className="rounded-2xl dashboard-panel p-5 space-y-4">
+          <div data-tour="draft-board" className="rounded-2xl dashboard-panel p-5 space-y-4">
             <h2 className="text-sm font-semibold text-white">Alliance Board</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">

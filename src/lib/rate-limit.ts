@@ -15,9 +15,10 @@ export type PlanTier = "free" | "supporter";
 
 export const TEAM_AI_WINDOW_MS = 3 * 60 * 60 * 1000;
 export const TEAM_AI_LIMITS: Record<PlanTier, number> = {
-  free: 3,
-  supporter: 13,
+  free: 9000,
+  supporter: 16000,
 };
+export const TEAM_AI_RATE_LIMIT_PREFIX = "ai-tokens:";
 
 const storeKey = "__scoutaiRateLimitStore";
 const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL?.trim();
@@ -386,6 +387,10 @@ export function normalizePlanTier(value: string | null | undefined): PlanTier {
 
 export function getTeamAiLimit(planTier: string | null | undefined): number {
   return TEAM_AI_LIMITS[normalizePlanTier(planTier)];
+}
+
+export function getTeamAiRateLimitKey(orgId: string): string {
+  return `${TEAM_AI_RATE_LIMIT_PREFIX}${orgId}`;
 }
 
 export function buildRateLimitHeaders(

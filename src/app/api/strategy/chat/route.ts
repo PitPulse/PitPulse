@@ -4,6 +4,8 @@ import { summarizeScouting } from "@/lib/scouting-summary";
 import {
   buildRateLimitHeaders,
   checkRateLimit,
+  getTeamAiRateLimitKey,
+  peekRateLimit,
   retryAfterSeconds,
   TEAM_AI_WINDOW_MS,
 } from "@/lib/rate-limit";
@@ -15,6 +17,10 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+function estimateTokensFromText(value: string): number {
+  return Math.max(1, Math.ceil(value.length / 4));
+}
 
 function extractDeltaText(deltaContent: unknown): string {
   if (typeof deltaContent === "string") {
@@ -81,14 +87,15 @@ export async function POST(request: NextRequest) {
 
   const teamAiPromptLimits = await getTeamAiPromptLimits(supabase);
   const aiLimit = getTeamAiLimitFromSettings(teamAiPromptLimits, org.plan_tier);
-  const limit = await checkRateLimit(
-    `ai-interactions:${profile.org_id}`,
+  const aiLimitKey = getTeamAiRateLimitKey(profile.org_id);
+  const snapshot = await peekRateLimit(
+    aiLimitKey,
     TEAM_AI_WINDOW_MS,
     aiLimit
   );
-  const limitHeaders = buildRateLimitHeaders(limit, aiLimit);
-  if (!limit.allowed) {
-    const retryAfter = retryAfterSeconds(limit.resetAt);
+  const limitHeaders = buildRateLimitHeaders(snapshot, aiLimit);
+  if (snapshot.remaining <= 0) {
+    const retryAfter = retryAfterSeconds(snapshot.resetAt);
     return NextResponse.json(
       { error: "Your team has exceeded the rate limit. Please try again soon." },
       {
@@ -269,25 +276,49 @@ Rules:
 
   // Stream response from OpenAI
   try {
-    const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
-        messages: openaiMessages,
-        max_completion_tokens: 1200,
-        reasoning_effort: "low",
-        stream: true,
-      }),
-    });
+    const modelFallbackOrder = ["gpt-5.1", "gpt-5-mini"] as const;
+    let upstream: Response | null = null;
+    let lastError = "";
+    let includeUsageEnabled = true;
 
-    if (!upstream.ok) {
-      const errorBody = await upstream.text().catch(() => "");
+    for (const model of modelFallbackOrder) {
+      for (const includeUsage of [true, false]) {
+        const body: Record<string, unknown> = {
+          model,
+          messages: openaiMessages,
+          max_completion_tokens: 1200,
+          reasoning_effort: "low",
+          stream: true,
+        };
+        if (includeUsage) {
+          body.stream_options = { include_usage: true };
+        }
+
+        const candidate = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (candidate.ok) {
+          upstream = candidate;
+          includeUsageEnabled = includeUsage;
+          break;
+        }
+
+        const errorBody = await candidate.text().catch(() => "");
+        const usageLabel = includeUsage ? "usage-on" : "usage-off";
+        lastError = `${model} (${usageLabel}): ${errorBody.slice(0, 180)}`;
+      }
+      if (upstream) break;
+    }
+
+    if (!upstream) {
       return NextResponse.json(
-        { error: `AI service error: ${errorBody.slice(0, 200)}` },
+        { error: `AI service error: ${lastError || "all model attempts failed"}` },
         { status: 502, headers: limitHeaders }
       );
     }
@@ -299,6 +330,8 @@ Rules:
         const reader = upstream.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let streamedText = "";
+        let usageTokens: number | null = null;
 
         try {
           while (true) {
@@ -320,8 +353,17 @@ Rules:
 
               try {
                 const parsed = JSON.parse(payload);
+                const maybeUsageTokens = Number(parsed?.usage?.total_tokens);
+                if (
+                  includeUsageEnabled &&
+                  Number.isFinite(maybeUsageTokens) &&
+                  maybeUsageTokens >= 0
+                ) {
+                  usageTokens = Math.floor(maybeUsageTokens);
+                }
                 const delta = extractDeltaText(parsed.choices?.[0]?.delta?.content);
                 if (delta.length > 0) {
+                  streamedText += delta;
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ token: delta })}\n\n`)
                   );
@@ -332,6 +374,24 @@ Rules:
             }
           }
         } finally {
+          const fallbackUsage =
+            estimateTokensFromText(JSON.stringify(openaiMessages)) +
+            estimateTokensFromText(streamedText);
+          const usageCost = Math.max(1, usageTokens ?? fallbackUsage);
+          const boundedCost = Math.max(
+            1,
+            Math.min(aiLimit, snapshot.remaining, usageCost)
+          );
+          try {
+            await checkRateLimit(
+              aiLimitKey,
+              TEAM_AI_WINDOW_MS,
+              aiLimit,
+              boundedCost
+            );
+          } catch {
+            // Don't break the client stream if usage accounting fails.
+          }
           controller.close();
         }
       },

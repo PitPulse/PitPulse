@@ -6,6 +6,7 @@ import { Navbar } from "@/components/navbar";
 import { EventDataCacher } from "@/components/event-data-cacher";
 import { MatchBriefOverlayButton } from "./match-brief-overlay-button";
 import { PaginatedMatchGrid } from "./paginated-match-grid";
+import { MatchesTour } from "./matches-tour";
 
 export async function generateMetadata({
   params,
@@ -285,14 +286,15 @@ export default async function MatchListPage({
   return (
     <div className="min-h-screen overflow-x-hidden dashboard-page">
       <Navbar />
+      <MatchesTour />
       <EventDataCacher
         eventKey={eventKey}
         event={{ id: event.id, tba_key: eventKey, name: event.name, year: event.year }}
         matches={matches ?? []}
       />
       <main className="mx-auto max-w-2xl px-4 pb-12 pt-32 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div data-tour="matches-header" className="flex items-center justify-between">
+          <div data-tour="matches-tips">
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
               {eventTitle}
             </p>
@@ -311,35 +313,37 @@ export default async function MatchListPage({
             Back
           </Link>
         </div>
-        {/* Qual Matches */}
-        {qualMatches.length > 0 && (
-          <PaginatedMatchGrid
-            label="Qualification Matches"
-            totalCount={qualMatches.length}
-          >
-            {qualMatches.map((m) => (
-              <MatchCard key={m.id} match={m} />
-            ))}
-          </PaginatedMatchGrid>
-        )}
+        <div data-tour="matches-grid">
+          {/* Qual Matches */}
+          {qualMatches.length > 0 && (
+            <PaginatedMatchGrid
+              label="Qualification Matches"
+              totalCount={qualMatches.length}
+            >
+              {qualMatches.map((m) => (
+                <MatchCard key={m.id} match={m} />
+              ))}
+            </PaginatedMatchGrid>
+          )}
 
-        {/* Playoff Matches */}
-        {playoffMatches.length > 0 && (
-          <PaginatedMatchGrid
-            label="Playoff Matches"
-            totalCount={playoffMatches.length}
-          >
-            {playoffMatches.map((m) => (
-              <MatchCard key={m.id} match={m} />
-            ))}
-          </PaginatedMatchGrid>
-        )}
+          {/* Playoff Matches */}
+          {playoffMatches.length > 0 && (
+            <PaginatedMatchGrid
+              label="Playoff Matches"
+              totalCount={playoffMatches.length}
+            >
+              {playoffMatches.map((m) => (
+                <MatchCard key={m.id} match={m} />
+              ))}
+            </PaginatedMatchGrid>
+          )}
 
-        {(!matches || matches.length === 0) && (
-          <p className="text-center text-sm text-gray-400 py-8">
-            No matches found. Sync the event first.
-          </p>
-        )}
+          {(!matches || matches.length === 0) && (
+            <p className="text-center text-sm text-gray-400 py-8">
+              No matches found. Sync the event first.
+            </p>
+          )}
+        </div>
       </main>
     </div>
   );

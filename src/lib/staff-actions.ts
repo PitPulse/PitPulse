@@ -14,7 +14,7 @@ import {
   serializeQuestionSettingsPayload,
   type ScoutingFormConfig,
 } from "@/lib/platform-settings";
-import { resetRateLimitPrefix } from "@/lib/rate-limit";
+import { resetRateLimitPrefix, TEAM_AI_RATE_LIMIT_PREFIX } from "@/lib/rate-limit";
 
 async function requireStaff() {
   const supabase = await createClient();
@@ -521,12 +521,14 @@ export async function updateTeamAiPromptLimits(formData: FormData) {
   if (
     Number.isNaN(freeParsed) ||
     Number.isNaN(supporterParsed) ||
-    freeParsed < 1 ||
-    supporterParsed < 1 ||
-    freeParsed > 50 ||
-    supporterParsed > 50
+    freeParsed < 500 ||
+    supporterParsed < 500 ||
+    freeParsed > 200000 ||
+    supporterParsed > 200000
   ) {
-    return { error: "Limits must be whole numbers between 1 and 50." } as const;
+    return {
+      error: "Limits must be whole numbers between 500 and 200000 tokens.",
+    } as const;
   }
 
   if (supporterParsed < freeParsed) {
@@ -580,7 +582,7 @@ export async function updateTeamAiPromptLimits(formData: FormData) {
     if (error.message.toLowerCase().includes("scouting_ability_questions")) {
       return {
         error:
-          "AI prompt limit settings are missing in the database. Run the latest migration first.",
+          "AI token limit settings are missing in the database. Run the latest migration first.",
       } as const;
     }
     if (error.message.toLowerCase().includes("platform_settings")) {
@@ -676,7 +678,7 @@ export async function resetAllTeamAiCooldowns() {
     return { error: ctx.error } as const;
   }
 
-  const result = await resetRateLimitPrefix("ai-interactions:");
+  const result = await resetRateLimitPrefix(TEAM_AI_RATE_LIMIT_PREFIX);
 
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard");

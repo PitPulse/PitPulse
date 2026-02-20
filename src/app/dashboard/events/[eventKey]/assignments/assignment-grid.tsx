@@ -264,7 +264,7 @@ export function AssignmentGrid({
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div data-tour="assignments-controls" className="flex flex-wrap items-center gap-3">
         <div className="inline-flex rounded-xl border border-white/15 bg-[#0d1424]/80 p-1 shadow-[0_10px_24px_-18px_rgba(56,189,248,0.35)] backdrop-blur-md">
           {(
             [
@@ -327,6 +327,7 @@ export function AssignmentGrid({
       {/* Grid */}
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
+          data-tour="assignments-grid"
           key={filter}
           initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}

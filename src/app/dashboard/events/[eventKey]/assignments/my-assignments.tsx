@@ -117,7 +117,7 @@ export function MyAssignments({
       </div>
 
       {/* Upcoming */}
-      <div className="space-y-2">
+      <div data-tour="my-assignments-list" className="space-y-2">
         {upcoming.map((a) => (
           <Link
             key={a.id}

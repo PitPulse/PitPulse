@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatCompletion } from "@/lib/openai";
+import { chatCompletionWithUsage } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { PickListContentSchema, type PickListContent } from "@/types/strategy";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import {
   buildRateLimitHeaders,
   checkRateLimit,
+  getTeamAiRateLimitKey,
+  peekRateLimit,
   retryAfterSeconds,
   TEAM_AI_WINDOW_MS,
 } from "@/lib/rate-limit";
@@ -17,6 +19,10 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+function estimateTokensFromText(value: string): number {
+  return Math.max(1, Math.ceil(value.length / 4));
+}
 
 function parseAiJson(text: string): unknown {
   // Try raw first.
@@ -227,17 +233,15 @@ export async function POST(request: NextRequest) {
     teamAiPromptLimits,
     orgMeta?.plan_tier
   );
-  // Pick list generation costs 3 tokens (it uses ~13x more AI than a regular prompt)
-  const PICKLIST_COST = 3;
-  const limit = await checkRateLimit(
-    `ai-interactions:${profile.org_id}`,
+  const aiLimitKey = getTeamAiRateLimitKey(profile.org_id);
+  const snapshot = await peekRateLimit(
+    aiLimitKey,
     TEAM_AI_WINDOW_MS,
-    aiLimit,
-    PICKLIST_COST
+    aiLimit
   );
-  const limitHeaders = buildRateLimitHeaders(limit, aiLimit);
-  if (!limit.allowed) {
-    const retryAfter = retryAfterSeconds(limit.resetAt);
+  const limitHeaders = buildRateLimitHeaders(snapshot, aiLimit);
+  if (snapshot.remaining <= 0) {
+    const retryAfter = retryAfterSeconds(snapshot.resetAt);
     return NextResponse.json(
       { error: "Your team has exceeded the rate limit. Please try again soon." },
       {
@@ -455,7 +459,8 @@ IMPORTANT:
 - The user's team number may be null if not set; in that case, rank purely on individual team strength`;
 
   try {
-    const textOutput = await chatCompletion(apiKey, {
+    const response = await chatCompletionWithUsage(apiKey, {
+      model: "gpt-5.1",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(promptData) },
@@ -463,6 +468,31 @@ IMPORTANT:
       max_tokens: 12000,
       reasoning_effort: "medium",
     });
+    const textOutput = response.text;
+    const usageCost = Math.max(
+      1,
+      response.usage.totalTokens ??
+        estimateTokensFromText(systemPrompt) +
+          estimateTokensFromText(JSON.stringify(promptData)) +
+          estimateTokensFromText(textOutput)
+    );
+    const consumed = await checkRateLimit(
+      aiLimitKey,
+      TEAM_AI_WINDOW_MS,
+      aiLimit,
+      Math.max(1, Math.min(aiLimit, snapshot.remaining, usageCost))
+    );
+    const consumedHeaders = buildRateLimitHeaders(consumed, aiLimit);
+    if (!consumed.allowed) {
+      const retryAfter = retryAfterSeconds(consumed.resetAt);
+      return NextResponse.json(
+        { error: "Your team has exceeded the rate limit. Please try again soon." },
+        {
+          status: 429,
+          headers: { ...consumedHeaders, "Retry-After": retryAfter.toString() },
+        }
+      );
+    }
 
     let parsedJson: unknown;
     try {
@@ -516,7 +546,7 @@ IMPORTANT:
         pickList: pickListContent,
         pickListId: pickList.id,
       },
-      { headers: limitHeaders }
+      { headers: consumedHeaders }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

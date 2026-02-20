@@ -7,8 +7,8 @@ const DEFAULT_SCOUTING_ABILITY_QUESTIONS = [
   "Can go under the trench?",
   "Can go over the ramp?",
 ];
-const MIN_AI_PROMPT_LIMIT = 1;
-const MAX_AI_PROMPT_LIMIT = 50;
+const MIN_AI_PROMPT_LIMIT = 500;
+const MAX_AI_PROMPT_LIMIT = 200000;
 
 /* ── Scouting Form Config ─────────────────────────────────────── */
 
@@ -187,6 +187,9 @@ function normalizeAiPromptLimit(
       ? value
       : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
+  // Legacy prompt-based limits were small numbers (for example, 3/13).
+  // When detected, promote to the new token-based defaults.
+  if (parsed > 0 && parsed <= 200) return fallback;
   return Math.max(MIN_AI_PROMPT_LIMIT, Math.min(MAX_AI_PROMPT_LIMIT, parsed));
 }
 

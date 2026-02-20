@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TeamStatsTable } from "./team-stats-table";
 import { Navbar } from "@/components/navbar";
 import { SyncStatsButton } from "./sync-stats-button";
+import { EventTour } from "./event-tour";
 
 export async function generateMetadata({
   params,
@@ -196,9 +197,10 @@ export default async function EventPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
+      <EventTour />
       <main className="mx-auto max-w-7xl px-4 pb-12 pt-32">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
+          <div data-tour="event-header">
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
               Event overview
             </p>
@@ -225,7 +227,7 @@ export default async function EventPage({
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div data-tour="event-actions" className="flex flex-wrap gap-2">
             <Link
               href={`/dashboard/events/${eventKey}/matches`}
               className="dashboard-action dashboard-action-primary dashboard-action-holo"
@@ -267,20 +269,22 @@ export default async function EventPage({
           </div>
         </div>
 
-        {tableData.length === 0 ? (
-          <div className="rounded-3xl border border-teal-500/30 bg-teal-500/10 p-8 text-center">
-            <p className="text-teal-700 dark:text-yellow-300">
-              Team stats update once matches start or as the event gets closer.
-              You can sync again later to pull the latest EPA.
-            </p>
-          </div>
-        ) : (
-          <TeamStatsTable
-            data={tableData}
-            eventKey={eventKey}
-            highlightTeam={orgTeamNumber}
-          />
-        )}
+        <div data-tour="event-team-stats">
+          {tableData.length === 0 ? (
+            <div className="rounded-3xl border border-teal-500/30 bg-teal-500/10 p-8 text-center">
+              <p className="text-teal-700 dark:text-yellow-300">
+                Team stats update once matches start or as the event gets closer.
+                You can sync again later to pull the latest EPA.
+              </p>
+            </div>
+          ) : (
+            <TeamStatsTable
+              data={tableData}
+              eventKey={eventKey}
+              highlightTeam={orgTeamNumber}
+            />
+          )}
+        </div>
       </main>
     </div>
   );

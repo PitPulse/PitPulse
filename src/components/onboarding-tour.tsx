@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/components/i18n-provider";
 
-interface TourStep {
+export interface TourStep {
   /** CSS selector to highlight (null = centered modal) */
   selector: string | null;
   titleKey: string;
   descKey: string;
 }
 
-const TOUR_STEPS: TourStep[] = [
+const DEFAULT_TOUR_STEPS: TourStep[] = [
   {
     selector: null,
     titleKey: "tour.welcome",
@@ -38,16 +38,16 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const STORAGE_KEY = "pitpilot_tour_seen";
+const DEFAULT_STORAGE_KEY = "pitpilot_tour_seen";
 
-function hasTourBeenSeen(): boolean {
+function hasTourBeenSeen(storageKey: string): boolean {
   if (typeof window === "undefined") return true;
-  return localStorage.getItem(STORAGE_KEY) === "true";
+  return localStorage.getItem(storageKey) === "true";
 }
 
-function markTourSeen(): void {
+function markTourSeen(storageKey: string): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, "true");
+  localStorage.setItem(storageKey, "true");
 }
 
 interface TooltipPosition {
@@ -122,11 +122,19 @@ function computePosition(
 interface OnboardingTourProps {
   /** Override auto-detection; force show the tour */
   forceShow?: boolean;
+  /** Per-page storage key, defaults to dashboard tour key */
+  storageKey?: string;
+  /** Per-page step list, defaults to dashboard tour steps */
+  steps?: TourStep[];
 }
 
-export function OnboardingTour({ forceShow = false }: OnboardingTourProps) {
+export function OnboardingTour({
+  forceShow = false,
+  storageKey = DEFAULT_STORAGE_KEY,
+  steps = DEFAULT_TOUR_STEPS,
+}: OnboardingTourProps) {
   const { t } = useTranslation();
-  const [visible, setVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [step, setStep] = useState(0);
   const [position, setPosition] = useState<TooltipPosition>({
     top: 0,
@@ -136,16 +144,14 @@ export function OnboardingTour({ forceShow = false }: OnboardingTourProps) {
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  // Decide whether to show tour on mount
-  useEffect(() => {
-    if (forceShow || !hasTourBeenSeen()) {
-      setVisible(true);
-    }
-  }, [forceShow]);
+  const visible =
+    steps.length > 0 &&
+    !dismissed &&
+    (forceShow || !hasTourBeenSeen(storageKey));
 
   // Position tooltip whenever step changes
   const positionTooltip = useCallback(() => {
-    const currentStep = TOUR_STEPS[step];
+    const currentStep = steps[step];
     if (!currentStep || !visible) return;
 
     let targetRect: DOMRect | null = null;
@@ -177,7 +183,7 @@ export function OnboardingTour({ forceShow = false }: OnboardingTourProps) {
     const tw = tooltipRef.current?.offsetWidth ?? 340;
     const th = tooltipRef.current?.offsetHeight ?? 200;
     setPosition(computePosition(targetRect, tw, th));
-  }, [step, visible]);
+  }, [step, visible, steps]);
 
   useEffect(() => {
     if (!visible) return;
@@ -193,23 +199,23 @@ export function OnboardingTour({ forceShow = false }: OnboardingTourProps) {
   }, [positionTooltip, visible]);
 
   const handleNext = useCallback(() => {
-    if (step < TOUR_STEPS.length - 1) {
+    if (step < steps.length - 1) {
       setStep((s) => s + 1);
     } else {
       // Finish
-      markTourSeen();
-      setVisible(false);
+      markTourSeen(storageKey);
+      setDismissed(true);
     }
-  }, [step]);
+  }, [step, storageKey, steps.length]);
 
   const handlePrev = useCallback(() => {
     setStep((s) => Math.max(0, s - 1));
   }, []);
 
   const handleSkip = useCallback(() => {
-    markTourSeen();
-    setVisible(false);
-  }, []);
+    markTourSeen(storageKey);
+    setDismissed(true);
+  }, [storageKey]);
 
   // Handle keyboard
   useEffect(() => {
@@ -224,11 +230,12 @@ export function OnboardingTour({ forceShow = false }: OnboardingTourProps) {
   }, [visible, handleSkip, handleNext, handlePrev]);
 
   if (!visible) return null;
+  if (steps.length === 0) return null;
 
   const isFirst = step === 0;
-  const isLast = step === TOUR_STEPS.length - 1;
-  const currentStep = TOUR_STEPS[step];
-  const totalSteps = TOUR_STEPS.length;
+  const isLast = step === steps.length - 1;
+  const currentStep = steps[step];
+  const totalSteps = steps.length;
 
   return (
     <>

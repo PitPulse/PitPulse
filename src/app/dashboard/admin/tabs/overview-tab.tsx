@@ -57,13 +57,13 @@ export function OverviewTab({
     if (!("success" in result)) {
       const message =
         "error" in result
-          ? result.error ?? "Failed to update AI prompt limits."
+          ? result.error ?? "Failed to update AI token limits."
           : "Website admin access required.";
       setStatus(message);
       return;
     }
 
-    setStatus("AI prompt limits updated.");
+    setStatus("AI token limits updated.");
     startTransition(() => router.refresh());
   }
 
@@ -231,37 +231,39 @@ export function OverviewTab({
             </svg>
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-white">Team AI Prompt Limits</h3>
+            <h3 className="text-base font-semibold text-white">Team AI Token Limits</h3>
             <p className="mt-1 text-sm text-gray-400">
-              Set shared prompt caps per plan for each {aiWindowHours}-hour window.
+              Set shared token caps per plan for each {aiWindowHours}-hour window.
             </p>
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block">
-            <span className="text-xs font-medium text-gray-400">Free plan limit</span>
+            <span className="text-xs font-medium text-gray-400">Free plan token cap</span>
             <input
               type="number"
-              min={1}
-              max={50}
+              min={500}
+              max={200000}
               value={freeLimit}
               onChange={(e) =>
-                setFreeLimit(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
+                setFreeLimit(
+                  Math.max(500, Math.min(200000, Number(e.target.value) || 500))
+                )
               }
               className="dashboard-input mt-1 w-full px-3 py-2 text-sm"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-gray-400">Supporter plan limit</span>
+            <span className="text-xs font-medium text-gray-400">Supporter plan token cap</span>
             <input
               type="number"
-              min={1}
-              max={50}
+              min={500}
+              max={200000}
               value={supporterLimit}
               onChange={(e) =>
                 setSupporterLimit(
-                  Math.max(1, Math.min(50, Number(e.target.value) || 1))
+                  Math.max(500, Math.min(200000, Number(e.target.value) || 500))
                 )
               }
               className="dashboard-input mt-1 w-full px-3 py-2 text-sm"
@@ -276,7 +278,7 @@ export function OverviewTab({
             loading={isPending}
             onClick={handleSaveAiLimits}
           >
-            Save AI limits
+            Save token limits
           </Button>
           <Button
             type="button"

@@ -27,6 +27,17 @@ export type OpenAIChatOptions = {
   reasoning_effort?: ReasoningEffort;
 };
 
+export type OpenAIUsage = {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+};
+
+export type OpenAIChatResult = {
+  text: string;
+  usage: OpenAIUsage;
+};
+
 type OpenAIChatResponse = {
   output_text?: string | null;
   output?: Array<{
@@ -51,6 +62,13 @@ type OpenAIChatResponse = {
     };
     finish_reason: string;
   }>;
+  usage?: {
+    prompt_tokens?: number | null;
+    completion_tokens?: number | null;
+    total_tokens?: number | null;
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+  } | null;
 };
 
 function normalizeText(value: unknown): string {
@@ -79,14 +97,42 @@ function joinTextParts(parts: unknown): string {
   return chunks.join("\n").trim();
 }
 
+function toFiniteInt(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const parsed = Math.floor(value);
+  return parsed >= 0 ? parsed : null;
+}
+
+function parseUsage(data: OpenAIChatResponse): OpenAIUsage {
+  const usage = data.usage;
+  const promptTokens = toFiniteInt(
+    usage?.prompt_tokens ?? usage?.input_tokens ?? null
+  );
+  const completionTokens = toFiniteInt(
+    usage?.completion_tokens ?? usage?.output_tokens ?? null
+  );
+  const totalFromApi = toFiniteInt(usage?.total_tokens ?? null);
+  const totalTokens =
+    totalFromApi ??
+    (promptTokens !== null && completionTokens !== null
+      ? promptTokens + completionTokens
+      : null);
+
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+  };
+}
+
 /**
  * Calls the OpenAI Chat Completions API and returns the assistant's text.
  * Throws on HTTP errors or empty responses.
  */
-export async function chatCompletion(
+export async function chatCompletionWithUsage(
   apiKey: string,
   options: OpenAIChatOptions
-): Promise<string> {
+): Promise<OpenAIChatResult> {
   const body: Record<string, unknown> = {
     model: options.model ?? "gpt-5-mini",
     messages: options.messages,
@@ -151,5 +197,16 @@ export async function chatCompletion(
     throw new Error(`No text response from OpenAI (finish_reason: ${finishReason})`);
   }
 
-  return text;
+  return {
+    text,
+    usage: parseUsage(data),
+  };
+}
+
+export async function chatCompletion(
+  apiKey: string,
+  options: OpenAIChatOptions
+): Promise<string> {
+  const result = await chatCompletionWithUsage(apiKey, options);
+  return result.text;
 }

@@ -6,6 +6,7 @@ import { Navbar } from "@/components/navbar";
 import type { PickListContent } from "@/types/strategy";
 import { DraftRoom } from "./draft-room";
 import { getScoutingFormConfig } from "@/lib/platform-settings";
+import { DraftTour } from "./draft-tour";
 
 export default async function DraftRoomPage({
   params,
@@ -108,8 +109,9 @@ export default async function DraftRoomPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
+      <DraftTour />
       <main className="mx-auto max-w-7xl px-4 pb-12 pt-32 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div data-tour="draft-header" className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
               Draft room

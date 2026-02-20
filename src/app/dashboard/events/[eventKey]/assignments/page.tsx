@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AssignmentGrid } from "./assignment-grid";
 import { MyAssignments } from "./my-assignments";
 import { Navbar } from "@/components/navbar";
+import { AssignmentsTour } from "./assignments-tour";
 
 export default async function AssignmentsPage({
   params,
@@ -79,8 +80,9 @@ export default async function AssignmentsPage({
   return (
     <div className="min-h-screen dashboard-page">
       <Navbar />
+      <AssignmentsTour isCaptain={isCaptain} />
       <main className="mx-auto max-w-7xl px-4 pb-12 pt-32">
-        <div className="mb-6 flex items-center justify-between">
+        <div data-tour="assignments-header" className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
               {eventTitle}
@@ -94,23 +96,25 @@ export default async function AssignmentsPage({
             Back
           </Link>
         </div>
-        {isCaptain ? (
-          <AssignmentGrid
-            matches={matches ?? []}
-            members={members ?? []}
-            assignments={assignments ?? []}
-            orgId={profile.org_id}
-            eventKey={eventKey}
-            orgTeamNumber={org?.team_number ?? null}
-          />
-        ) : (
-          <MyAssignments
-            matches={matches ?? []}
-            assignments={(assignments ?? []).filter(
-              (a) => a.assigned_to === user.id
-            )}
-          />
-        )}
+        <div data-tour="assignments-workspace">
+          {isCaptain ? (
+            <AssignmentGrid
+              matches={matches ?? []}
+              members={members ?? []}
+              assignments={assignments ?? []}
+              orgId={profile.org_id}
+              eventKey={eventKey}
+              orgTeamNumber={org?.team_number ?? null}
+            />
+          ) : (
+            <MyAssignments
+              matches={matches ?? []}
+              assignments={(assignments ?? []).filter(
+                (a) => a.assigned_to === user.id
+              )}
+            />
+          )}
+        </div>
       </main>
     </div>
   );

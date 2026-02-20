@@ -1,7 +1,7 @@
 export type RateLimitKind = "ai" | "sync";
 
 export const TEAM_AI_RATE_LIMIT_MESSAGE =
-  "Your team has reached its shared AI usage limit. Supporter access has higher limits. Please try again soon.";
+  "Your team has reached its shared AI token limit for this window. Supporter access has a higher token budget. Please try again soon.";
 
 export const TEAM_SYNC_RATE_LIMIT_MESSAGE =
   "Your team has reached its sync rate limit. Please wait a few minutes before trying again.";
@@ -69,5 +69,5 @@ export function formatRateLimitUsageMessage(
     return `Sync usage: ${usedPct}% (${used}/${snapshot.limit}). Resets in ${resetIn}.`;
   }
 
-  return `AI usage: ${usedPct}% (${used}/${snapshot.limit}) for your team. Resets in ${resetIn}.`;
+  return `AI usage: ${usedPct}% (${used}/${snapshot.limit} tokens) for your team. Resets in ${resetIn}.`;
 }

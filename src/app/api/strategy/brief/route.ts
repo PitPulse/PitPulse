@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatCompletion } from "@/lib/openai";
+import { chatCompletionWithUsage } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { BriefContentSchema, type BriefContent } from "@/types/strategy";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import {
   buildRateLimitHeaders,
   checkRateLimit,
+  getTeamAiRateLimitKey,
+  peekRateLimit,
   retryAfterSeconds,
   TEAM_AI_WINDOW_MS,
 } from "@/lib/rate-limit";
@@ -21,6 +23,10 @@ export const maxDuration = 60;
 type JsonObject = Record<string, unknown>;
 type AllianceColor = "red" | "blue";
 type PriorityLevel = "high" | "medium" | "low";
+
+function estimateTokensFromText(value: string): number {
+  return Math.max(1, Math.ceil(value.length / 4));
+}
 
 interface MatchBriefNormalizationContext {
   allTeams: number[];
@@ -689,14 +695,15 @@ export async function POST(request: NextRequest) {
 
   const teamAiPromptLimits = await getTeamAiPromptLimits(supabase);
   const aiLimit = getTeamAiLimitFromSettings(teamAiPromptLimits, org.plan_tier);
-  const limit = await checkRateLimit(
-    `ai-interactions:${profile.org_id}`,
+  const aiLimitKey = getTeamAiRateLimitKey(profile.org_id);
+  const snapshot = await peekRateLimit(
+    aiLimitKey,
     TEAM_AI_WINDOW_MS,
     aiLimit
   );
-  const limitHeaders = buildRateLimitHeaders(limit, aiLimit);
-  if (!limit.allowed) {
-    const retryAfter = retryAfterSeconds(limit.resetAt);
+  const limitHeaders = buildRateLimitHeaders(snapshot, aiLimit);
+  if (snapshot.remaining <= 0) {
+    const retryAfter = retryAfterSeconds(snapshot.resetAt);
     return NextResponse.json(
       { error: "Your team has exceeded the rate limit. Please try again soon." },
       {
@@ -933,7 +940,8 @@ IMPORTANT:
 - Do not use emojis`;
 
   try {
-    const textOutput = await chatCompletion(apiKey, {
+    const response = await chatCompletionWithUsage(apiKey, {
+      model: "gpt-5.1",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(promptData) },
@@ -941,6 +949,31 @@ IMPORTANT:
       max_tokens: 4000,
       reasoning_effort: "medium",
     });
+    const textOutput = response.text;
+    const usageCost = Math.max(
+      1,
+      response.usage.totalTokens ??
+        estimateTokensFromText(systemPrompt) +
+          estimateTokensFromText(JSON.stringify(promptData)) +
+          estimateTokensFromText(textOutput)
+    );
+    const consumed = await checkRateLimit(
+      aiLimitKey,
+      TEAM_AI_WINDOW_MS,
+      aiLimit,
+      Math.max(1, Math.min(aiLimit, snapshot.remaining, usageCost))
+    );
+    const consumedHeaders = buildRateLimitHeaders(consumed, aiLimit);
+    if (!consumed.allowed) {
+      const retryAfter = retryAfterSeconds(consumed.resetAt);
+      return NextResponse.json(
+        { error: "Your team has exceeded the rate limit. Please try again soon." },
+        {
+          status: 429,
+          headers: { ...consumedHeaders, "Retry-After": retryAfter.toString() },
+        }
+      );
+    }
 
     let parsedJson: unknown;
     try {
@@ -1003,7 +1036,7 @@ IMPORTANT:
         brief: briefContent,
         briefId: brief.id,
       },
-      { headers: limitHeaders }
+      { headers: consumedHeaders }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

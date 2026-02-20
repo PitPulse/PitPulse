@@ -8,7 +8,12 @@ import { LeaveTeamButton } from "@/components/leave-team-button";
 import { CopyInviteLink } from "@/components/copy-invite-link";
 import { SortableEvents } from "@/components/sortable-events";
 import { AnimateIn, StaggerGroup, StaggerChild } from "@/components/ui/animate-in";
-import { TEAM_AI_WINDOW_MS, hasSupporterAccess, peekRateLimit } from "@/lib/rate-limit";
+import {
+  TEAM_AI_WINDOW_MS,
+  getTeamAiRateLimitKey,
+  hasSupporterAccess,
+  peekRateLimit,
+} from "@/lib/rate-limit";
 import { getTeamAiPromptLimits } from "@/lib/platform-settings";
 import { UsageLimitMeter } from "./usage-limit-meter";
 import { UpgradeSupporterButton } from "@/components/upgrade-supporter-button";
@@ -61,7 +66,7 @@ export default async function DashboardPage() {
   const teamAiPromptLimits = await getTeamAiPromptLimits(supabase);
   const currentPlanAiLimit = teamAiPromptLimits[hasSupporterPlanAccess ? "supporter" : "free"];
   const aiUsage = await peekRateLimit(
-    `ai-interactions:${profile.org_id}`,
+    getTeamAiRateLimitKey(profile.org_id),
     TEAM_AI_WINDOW_MS,
     currentPlanAiLimit
   );
