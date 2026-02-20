@@ -4,11 +4,11 @@ import Avatar from "boring-avatars";
 
 // Cool-tone palette — blues, indigos & teals matching the dark UI
 const DEFAULT_COLORS = [
-  "#3b82f6", // blue-500
-  "#6366f1", // indigo-500
-  "#0ea5e9", // sky-500
-  "#8b5cf6", // violet-500
-  "#14b8a6", // teal-500
+  "#b2d9f7", 
+  "#487aa1",
+  "#3d3c3b", 
+  "#2a2c74", 
+  "#aed5db",
 ];
 
 export interface UserAvatarProps {
