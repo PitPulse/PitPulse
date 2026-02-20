@@ -36,7 +36,7 @@ export function UserAvatar({
       <Avatar
         name={name || "?"}
         size={size}
-        variant="bauhaus"
+        variant="beam"
         colors={colors}
         square={square}
       />
