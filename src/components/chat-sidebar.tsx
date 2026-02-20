@@ -23,6 +23,18 @@ const SUGGESTION_PROMPTS = [
   "Which teams are underrated sleepers?",
 ];
 
+/* ── Thinking phrases (Claude Code style) ─────────────────────── */
+
+const THINKING_PHRASES = [
+  "Analyzing team data",
+  "Crunching EPA numbers",
+  "Evaluating matchups",
+  "Reviewing scouting notes",
+  "Thinking strategically",
+  "Comparing alliances",
+  "Running simulations",
+];
+
 /* ── Chat session cache (sessionStorage per event) ────────────── */
 
 const CACHE_PREFIX = "pitpilot_chat_";
@@ -44,8 +56,22 @@ function setCachedMessages(eventKey: string, messages: ChatMessage[]) {
   try {
     sessionStorage.setItem(`${CACHE_PREFIX}${eventKey}`, JSON.stringify(messages));
   } catch {
-    /* quota exceeded — ignore */
+    /* quota exceeded */
   }
+}
+
+/* ── Width cache ──────────────────────────────────────────────── */
+
+const WIDTH_CACHE_KEY = "pitpilot_chat_width";
+const MIN_WIDTH = 340;
+const MAX_WIDTH = 720;
+const DEFAULT_WIDTH = 420;
+
+function getCachedWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_WIDTH;
+  const raw = localStorage.getItem(WIDTH_CACHE_KEY);
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= MIN_WIDTH && n <= MAX_WIDTH ? n : DEFAULT_WIDTH;
 }
 
 /* ── Markdown components for chat bubbles ─────────────────────── */
@@ -106,6 +132,38 @@ function SparkleIcon({ className }: { className?: string }) {
   );
 }
 
+/* ── Thinking indicator (Claude Code style) ───────────────────── */
+
+function ThinkingIndicator({ streaming }: { streaming: boolean }) {
+  const phrase = THINKING_PHRASES[0];
+
+  if (streaming) return null;
+
+  return (
+    <div className="flex items-start gap-2">
+      <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20">
+        <SparkleIcon className="h-3 w-3 animate-pulse text-blue-300" />
+      </span>
+      <div className="rounded-2xl bg-white/[0.06] px-4 py-3">
+        <motion.span
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="flex items-center gap-2 text-sm text-gray-400"
+        >
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+          <span>{phrase}</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1 w-1 rounded-full bg-blue-300 [animation:ping_1.2s_ease-in-out_infinite]" />
+            <span className="h-1 w-1 rounded-full bg-blue-300 [animation:ping_1.2s_ease-in-out_150ms_infinite]" />
+            <span className="h-1 w-1 rounded-full bg-blue-300 [animation:ping_1.2s_ease-in-out_300ms_infinite]" />
+          </span>
+        </motion.span>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main sidebar ─────────────────────────────────────────────── */
 
 interface ChatSidebarProps {
@@ -134,18 +192,53 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
   });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // True once tokens start arriving (false while "thinking")
+  const [streaming, setStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // Show suggestion chips only until the user sends a message
   const [showSuggestions, setShowSuggestions] = useState(() => {
     const cached = getCachedMessages(eventKey);
-    // If there are cached messages with conversation, don't show suggestions
     return !cached || cached.length <= 1;
   });
-  // Inline usage hint shown above the input bar
   const [usageHint, setUsageHint] = useState<string | null>(null);
   const usageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Resizable width
+  const [width, setWidth] = useState(getCachedWidth);
+  const isDragging = useRef(false);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    const startX = e.clientX;
+    const startWidth = width;
+
+    let latestWidth = startWidth;
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return;
+      // Dragging left edge means: increasing width when mouse moves left
+      const delta = startX - ev.clientX;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+      latestWidth = newWidth;
+      setWidth(newWidth);
+    };
+    const onMouseUp = () => {
+      isDragging.current = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      // Persist
+      try { localStorage.setItem(WIDTH_CACHE_KEY, String(latestWidth)); } catch { /* */ }
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [width]);
+
+  // Persist width when it changes
+  useEffect(() => {
+    try { localStorage.setItem(WIDTH_CACHE_KEY, String(width)); } catch { /* */ }
+  }, [width]);
 
   // Persist messages to sessionStorage whenever they change
   useEffect(() => {
@@ -154,10 +247,10 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     }
   }, [messages, eventKey]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages or streaming content
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, streamingContent]);
 
   // Focus input when sidebar opens
   useEffect(() => {
@@ -198,9 +291,10 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
+    setStreaming(false);
+    setStreamingContent("");
     setError(null);
 
-    // Send conversation history (skip initial greeting, cap at 12)
     const history = updatedMessages.slice(1, -1).slice(-12);
 
     try {
@@ -209,23 +303,78 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventKey, message: trimmed, history }),
       });
-      const usage = readRateLimitSnapshot(res.headers);
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(
-          resolveRateLimitMessage(
-            res.status,
-            data.error || "Failed to get response",
-            "ai"
-          )
-        );
-      }
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.reply as string },
-      ]);
 
-      // Show inline usage hint above the input bar
+      const usage = readRateLimitSnapshot(res.headers);
+
+      // Check if streaming response
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("text/event-stream") && res.body) {
+        // Stream tokens
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let fullText = "";
+        let startedStreaming = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine.startsWith("data: ")) continue;
+            const payload = trimmedLine.slice(6);
+            if (payload === "[DONE]") continue;
+
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.token) {
+                if (!startedStreaming) {
+                  startedStreaming = true;
+                  setStreaming(true);
+                }
+                fullText += parsed.token;
+                setStreamingContent(fullText);
+              }
+            } catch {
+              // Skip malformed
+            }
+          }
+        }
+
+        // Finalize: add the full message
+        if (fullText.trim()) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: fullText.trim() },
+          ]);
+        } else if (res.ok) {
+          // Avoid silent failure when upstream stream ends without text chunks.
+          setError("No response text was returned. Please try asking a shorter question.");
+        }
+      } else {
+        // Non-streaming fallback (e.g. error JSON)
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(
+            resolveRateLimitMessage(
+              res.status,
+              data.error || "Failed to get response",
+              "ai"
+            )
+          );
+        }
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.reply as string },
+        ]);
+      }
+
+      // Show inline usage hint
       if (usage) {
         const remainingPct = Math.max(
           0,
@@ -239,6 +388,8 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
+      setStreaming(false);
+      setStreamingContent("");
     }
   }
 
@@ -249,7 +400,6 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     }
   }
 
-  /** Render message content as markdown. */
   const renderContent = useCallback((text: string) => (
     <ReactMarkdown components={markdownComponents}>{text}</ReactMarkdown>
   ), []);
@@ -282,8 +432,15 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 400, damping: 34, mass: 0.8 }}
-            className="relative flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0a0f1a]/98 shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
+            className="relative flex h-full flex-col border-l border-white/10 bg-[#0a0f1a]/98 shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
+            style={{ width: `${width}px` }}
           >
+            {/* Resize handle (left edge) */}
+            <div
+              onMouseDown={handleResizeStart}
+              className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize transition-colors hover:bg-blue-500/30"
+            />
+
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-3">
@@ -322,7 +479,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                     </span>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                       message.role === "user"
                         ? "bg-blue-600/25 text-blue-50"
                         : "bg-white/[0.06] text-gray-200"
@@ -333,7 +490,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                 </div>
               ))}
 
-              {/* Suggestion chips — shown only before the first user message */}
+              {/* Suggestion chips */}
               {showSuggestions && !loading && messages.length === 1 && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
@@ -355,20 +512,30 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                 </motion.div>
               )}
 
-              {loading && (
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20">
+              {/* Streaming content (live tokens) */}
+              {loading && streamingContent && (
+                <div className="flex justify-start">
+                  <span className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20">
                     <SparkleIcon className="h-3 w-3 text-blue-300" />
                   </span>
-                  <div className="rounded-2xl bg-white/[0.06] px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: "0ms" }} />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: "150ms" }} />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: "300ms" }} />
-                    </div>
+                  <div className="max-w-[85%] rounded-2xl bg-white/[0.06] px-4 py-3 text-sm leading-relaxed text-gray-200">
+                    <motion.div
+                      key={streamingContent.length}
+                      initial={{ opacity: 0.35 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.16, ease: "easeOut" }}
+                    >
+                      {renderContent(streamingContent)}
+                    </motion.div>
                   </div>
                 </div>
               )}
+
+              {/* Thinking indicator (before tokens arrive) */}
+              {loading && !streamingContent && (
+                <ThinkingIndicator streaming={streaming} />
+              )}
+
               <div ref={endRef} />
             </div>
 
@@ -423,7 +590,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                 </button>
               </div>
               <p className="mt-2 text-[10px] text-gray-600">
-                Enter to send · Shift+Enter for newline · Powered by EPA + your scouting data
+                Enter to send · Shift+Enter for newline · Drag left edge to resize
               </p>
             </div>
           </motion.div>

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatCompletion } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import {
@@ -16,6 +15,31 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+function extractDeltaText(deltaContent: unknown): string {
+  if (typeof deltaContent === "string") {
+    return deltaContent;
+  }
+  if (!Array.isArray(deltaContent)) {
+    return "";
+  }
+
+  let combined = "";
+  for (const part of deltaContent) {
+    if (!part || typeof part !== "object") continue;
+    const maybeText = (part as { text?: unknown }).text;
+    if (typeof maybeText === "string") {
+      combined += maybeText;
+      continue;
+    }
+    const maybeNestedText = (part as { text?: { value?: unknown } }).text?.value;
+    if (typeof maybeNestedText === "string") {
+      combined += maybeNestedText;
+    }
+  }
+
+  return combined;
+}
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -213,7 +237,8 @@ Rules:
 - Remind the user that more scouting entries improve response quality when relevant.
 - Use markdown formatting: **bold** for team numbers and key stats, bullet lists for comparisons, ### headings for sections when the answer is long. Keep responses concise.
 - Do not use emojis.
-- If asked what model you are, say: "This assistant is powered by GPT-5, tuned for FRC strategy analysis."`;
+- Never use em dashes (—) in prose or explanations. Use commas, periods, or semicolons instead. Em dashes are acceptable only in team labels like "Team 1234 -- The Robonauts".
+- Do not reveal your model name or provider. If asked, say "I'm PitPilot's strategy assistant."`;
 
   const userPayload = {
     event: {
@@ -226,72 +251,98 @@ Rules:
     teams: teamContext,
   };
 
+  // Build messages array: system prompt, context payload, conversation history, new question
+  const openaiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: `[Event context]\n${JSON.stringify(userPayload)}` },
+    { role: "assistant", content: "Got it. I have the event context loaded. What would you like to know?" },
+  ];
+
+  for (const msg of conversationHistory) {
+    openaiMessages.push(msg);
+  }
+  openaiMessages.push({ role: "user", content: message });
+
+  // Stream response from OpenAI
   try {
-    // Build messages array: system prompt, context payload, conversation history, new question
-    const openaiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `[Event context]\n${JSON.stringify(userPayload)}` },
-      { role: "assistant", content: "Got it — I have the event context loaded. What would you like to know?" },
-    ];
+    const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-5-mini",
+        messages: openaiMessages,
+        max_completion_tokens: 1200,
+        reasoning_effort: "low",
+        stream: true,
+      }),
+    });
 
-    // Append conversation history (prior turns)
-    for (const msg of conversationHistory) {
-      openaiMessages.push(msg);
-    }
-
-    // Append the new question
-    openaiMessages.push({ role: "user", content: message });
-
-    const attempts = [
-      { max_tokens: 700, reasoning_effort: "low" as const },
-      { max_tokens: 1200, reasoning_effort: "minimal" as const },
-      { max_tokens: 1800, reasoning_effort: "minimal" as const },
-    ];
-
-    let lastRetryError: unknown = null;
-    for (const attempt of attempts) {
-      try {
-        const textOutput = await chatCompletion(apiKey, {
-          model: "gpt-5-mini",
-          messages: openaiMessages,
-          max_tokens: attempt.max_tokens,
-          reasoning_effort: attempt.reasoning_effort,
-        });
-
-        return NextResponse.json(
-          { success: true, reply: textOutput },
-          { headers: limitHeaders }
-        );
-      } catch (attemptError) {
-        const errorMessage =
-          attemptError instanceof Error ? attemptError.message : String(attemptError);
-        const lower = errorMessage.toLowerCase();
-        const retryableNoText =
-          lower.includes("no text response from openai") ||
-          lower.includes("finish_reason: length");
-
-        if (!retryableNoText) {
-          throw attemptError;
-        }
-        lastRetryError = attemptError;
-      }
-    }
-
-    const fallbackMessage =
-      "I hit an output limit while generating that response. Please try a shorter question or ask about one team at a time.";
-    if (lastRetryError) {
+    if (!upstream.ok) {
+      const errorBody = await upstream.text().catch(() => "");
       return NextResponse.json(
-        { success: true, reply: fallbackMessage },
-        { headers: limitHeaders }
+        { error: `AI service error: ${errorBody.slice(0, 200)}` },
+        { status: 502, headers: limitHeaders }
       );
     }
 
-    return NextResponse.json(
-      { success: true, reply: fallbackMessage },
-      { headers: limitHeaders }
-    );
+    // Pipe the SSE stream through to the client
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = upstream.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith("data: ")) continue;
+              const payload = trimmed.slice(6);
+              if (payload === "[DONE]") {
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                continue;
+              }
+
+              try {
+                const parsed = JSON.parse(payload);
+                const delta = extractDeltaText(parsed.choices?.[0]?.delta?.content);
+                if (delta.length > 0) {
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ token: delta })}\n\n`)
+                  );
+                }
+              } catch {
+                // Skip malformed chunks
+              }
+            }
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        ...limitHeaders,
+      },
+    });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
