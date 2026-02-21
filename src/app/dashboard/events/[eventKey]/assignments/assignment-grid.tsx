@@ -43,6 +43,7 @@ export function AssignmentGrid({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageDirection, setPageDirection] = useState<1 | -1>(1);
 
   // Build assignment map: matchId-position -> scoutId
   const [assignmentMap, setAssignmentMap] = useState<
@@ -290,6 +291,7 @@ export function AssignmentGrid({
               key={value}
               onClick={() => {
                 setFilter(value);
+                setPageDirection(-1);
                 setPage(1);
               }}
               className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${
@@ -344,10 +346,27 @@ export function AssignmentGrid({
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           data-tour="assignments-grid"
-          key={filter}
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
+          key={`${filter}-${safePage}`}
+          custom={pageDirection}
+          initial={
+            prefersReducedMotion
+              ? false
+              : {
+                  opacity: 0,
+                  x: pageDirection > 0 ? 24 : -24,
+                  y: 4,
+                }
+          }
           animate={{ opacity: 1, y: 0 }}
-          exit={prefersReducedMotion ? {} : { opacity: 0, y: -6 }}
+          exit={
+            prefersReducedMotion
+              ? {}
+              : {
+                  opacity: 0,
+                  x: pageDirection > 0 ? -24 : 24,
+                  y: -4,
+                }
+          }
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="overflow-x-auto rounded-2xl dashboard-table"
         >
@@ -438,9 +457,10 @@ export function AssignmentGrid({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setPage((prev) => Math.max(1, Math.min(prev, totalPages) - 1))
-                }
+                onClick={() => {
+                  setPageDirection(-1);
+                  setPage((prev) => Math.max(1, Math.min(prev, totalPages) - 1));
+                }}
                 disabled={safePage === 1}
                 className="rounded-md border border-white/15 px-2 py-1 text-xs text-gray-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
               >
@@ -451,11 +471,12 @@ export function AssignmentGrid({
               </span>
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setPageDirection(1);
                   setPage((prev) =>
                     Math.min(totalPages, Math.min(prev, totalPages) + 1)
-                  )
-                }
+                  );
+                }}
                 disabled={safePage === totalPages}
                 className="rounded-md border border-white/15 px-2 py-1 text-xs text-gray-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
               >

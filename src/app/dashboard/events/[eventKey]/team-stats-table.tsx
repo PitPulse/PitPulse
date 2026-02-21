@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 interface TeamStat {
   team_number: number;
@@ -56,6 +57,8 @@ export function TeamStatsTable({
   const [sortAsc, setSortAsc] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageDirection, setPageDirection] = useState<1 | -1>(1);
+  const prefersReducedMotion = useReducedMotion();
   const missingEpaCount = useMemo(
     () => data.filter((team) => team.epa === null).length,
     [data]
@@ -97,6 +100,7 @@ export function TeamStatsTable({
   );
 
   function handleSort(key: SortKey) {
+    setPageDirection(-1);
     setPage(1);
     if (sortKey === key) {
       setSortAsc(!sortAsc);
@@ -126,6 +130,7 @@ export function TeamStatsTable({
         value={search}
         onChange={(e) => {
           setSearch(e.target.value);
+          setPageDirection(-1);
           setPage(1);
         }}
         className="w-full max-w-sm rounded-lg px-3 py-2 text-sm text-white shadow-sm dashboard-input"
@@ -147,46 +152,70 @@ export function TeamStatsTable({
               <SortHeader label="Win Rate" field="win_rate" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} />
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/10">
-            {pageRows.map((team, i) => {
-              const isHighlighted = highlightTeam !== null && team.team_number === highlightTeam;
-              return (
-              <tr key={team.team_number} className={isHighlighted ? "bg-white/10 hover:bg-white/15" : "hover:bg-white/5"}>
-                <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-400">
-                  {pageStart + i + 1}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm font-medium">
-                  <Link
-                    href={`/dashboard/events/${eventKey}/teams/${team.team_number}`}
-                    className="text-blue-300 hover:text-blue-200 hover:underline"
-                  >
-                    {team.team_number}
-                  </Link>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
-                  {team.name}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-white">
-                  {formatNum(team.epa)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
-                  {formatNum(team.auto_epa)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
-                  {formatNum(team.teleop_epa)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
-                  {formatNum(team.endgame_epa)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
-                  {team.win_rate !== null
-                    ? `${(team.win_rate * 100).toFixed(0)}%`
-                    : "—"}
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.tbody
+              key={`team-stats-page-${safePage}`}
+              className="divide-y divide-white/10"
+              custom={pageDirection}
+              initial={
+                prefersReducedMotion
+                  ? false
+                  : {
+                      opacity: 0,
+                      x: pageDirection > 0 ? 18 : -18,
+                    }
+              }
+              animate={{ opacity: 1, x: 0 }}
+              exit={
+                prefersReducedMotion
+                  ? {}
+                  : {
+                      opacity: 0,
+                      x: pageDirection > 0 ? -18 : 18,
+                    }
+              }
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {pageRows.map((team, i) => {
+                const isHighlighted = highlightTeam !== null && team.team_number === highlightTeam;
+                return (
+                <tr key={team.team_number} className={isHighlighted ? "bg-white/10 hover:bg-white/15" : "hover:bg-white/5"}>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-400">
+                    {pageStart + i + 1}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm font-medium">
+                    <Link
+                      href={`/dashboard/events/${eventKey}/teams/${team.team_number}`}
+                      className="text-blue-300 hover:text-blue-200 hover:underline"
+                    >
+                      {team.team_number}
+                    </Link>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
+                    {team.name}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-white">
+                    {formatNum(team.epa)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
+                    {formatNum(team.auto_epa)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
+                    {formatNum(team.teleop_epa)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
+                    {formatNum(team.endgame_epa)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-300">
+                    {team.win_rate !== null
+                      ? `${(team.win_rate * 100).toFixed(0)}%`
+                      : "—"}
+                  </td>
+                </tr>
+                );
+              })}
+            </motion.tbody>
+          </AnimatePresence>
         </table>
       </div>
 
@@ -201,9 +230,10 @@ export function TeamStatsTable({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() =>
-                setPage((prev) => Math.max(1, Math.min(prev, totalPages) - 1))
-              }
+              onClick={() => {
+                setPageDirection(-1);
+                setPage((prev) => Math.max(1, Math.min(prev, totalPages) - 1));
+              }}
               disabled={safePage === 1}
               className="rounded-md border border-white/15 px-2 py-1 text-xs text-gray-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
             >
@@ -211,12 +241,13 @@ export function TeamStatsTable({
             </button>
             <span>
               Page {safePage} / {totalPages}
-            </span>
+              </span>
             <button
               type="button"
-              onClick={() =>
-                setPage((prev) => Math.min(totalPages, Math.min(prev, totalPages) + 1))
-              }
+              onClick={() => {
+                setPageDirection(1);
+                setPage((prev) => Math.min(totalPages, Math.min(prev, totalPages) + 1));
+              }}
               disabled={safePage === totalPages}
               className="rounded-md border border-white/15 px-2 py-1 text-xs text-gray-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
             >
