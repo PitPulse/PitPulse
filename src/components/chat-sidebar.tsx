@@ -182,43 +182,6 @@ function ThinkingIndicator() {
   );
 }
 
-/* ── Streaming text (smooth word fade) ───────────────────────── */
-
-function tokenizeStreamingText(text: string) {
-  const tokens = text.match(/\S+|\s+/g) ?? [];
-  return tokens.map((value, index) => ({
-    key: `${index}-${value.length}`,
-    value,
-    isWhitespace: /^\s+$/.test(value),
-  }));
-}
-
-function StreamingText({ text }: { text: string }) {
-  const tokens = useMemo(() => tokenizeStreamingText(text), [text]);
-
-  return (
-    <p className="whitespace-pre-wrap break-words">
-      {tokens.map((token) => {
-        if (token.isWhitespace) {
-          return <span key={token.key}>{token.value}</span>;
-        }
-
-        return (
-          <motion.span
-            key={token.key}
-            className="inline-block will-change-[opacity,transform]"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {token.value}
-          </motion.span>
-        );
-      })}
-    </p>
-  );
-}
-
 /* ── Main sidebar ─────────────────────────────────────────────── */
 
 interface ChatSidebarProps {
@@ -596,7 +559,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                     <SparkleIcon className="h-3 w-3 text-blue-300" />
                   </span>
                   <div className="max-w-[85%] rounded-2xl bg-white/[0.06] px-4 py-3 text-sm leading-relaxed text-gray-200">
-                    <StreamingText text={streamingContent} />
+                    {renderContent(streamingContent)}
                   </div>
                 </div>
               )}
