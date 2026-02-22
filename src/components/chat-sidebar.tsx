@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  Children,
+  isValidElement,
+  cloneElement,
+} from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
@@ -133,6 +142,111 @@ const markdownComponents = {
   hr: () => <hr className="my-3 border-white/10" />,
 } as Record<string, React.ComponentType<Record<string, unknown>>>;
 
+function animateWords(text: string, path: string): React.ReactNode {
+  const tokens = text.match(/\S+|\s+/g) ?? [];
+  return tokens.map((token, index) => {
+    if (/^\s+$/.test(token)) return token;
+    return (
+      <motion.span
+        key={`${path}-w-${index}`}
+        className="inline-block will-change-[opacity,transform]"
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {token}
+      </motion.span>
+    );
+  });
+}
+
+function renderAnimatedMarkdownChildren(
+  children: React.ReactNode,
+  path = "n"
+): React.ReactNode {
+  return Children.map(children, (child, index) => {
+    const nextPath = `${path}-${index}`;
+    if (typeof child === "string") {
+      return animateWords(child, nextPath);
+    }
+    if (typeof child === "number") {
+      return animateWords(String(child), nextPath);
+    }
+    if (!isValidElement(child)) return child;
+
+    const currentChildren = (child.props as { children?: React.ReactNode })
+      .children;
+    if (currentChildren === undefined || currentChildren === null) return child;
+
+    return cloneElement(
+      child as React.ReactElement<{ children?: React.ReactNode }>,
+      undefined,
+      renderAnimatedMarkdownChildren(currentChildren, nextPath)
+    );
+  });
+}
+
+const streamingMarkdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-2 last:mb-0">{renderAnimatedMarkdownChildren(children, "p")}</p>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-white">
+      {renderAnimatedMarkdownChildren(children, "strong")}
+    </strong>
+  ),
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className="italic text-gray-300">
+      {renderAnimatedMarkdownChildren(children, "em")}
+    </em>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="mb-2 ml-4 list-disc space-y-1 last:mb-0">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="mb-2 ml-4 list-decimal space-y-1 last:mb-0">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="text-gray-200">{renderAnimatedMarkdownChildren(children, "li")}</li>
+  ),
+  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+    const isBlock = className?.includes("language-");
+    if (isBlock) {
+      return (
+        <pre className="mb-2 overflow-x-auto rounded-lg bg-black/30 p-3 text-xs last:mb-0">
+          <code className="text-gray-200">{children}</code>
+        </pre>
+      );
+    }
+    return (
+      <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-blue-200">
+        {children}
+      </code>
+    );
+  },
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="mb-1 mt-3 text-sm font-semibold text-white first:mt-0">
+      {renderAnimatedMarkdownChildren(children, "h3")}
+    </h3>
+  ),
+  h4: ({ children }: { children?: React.ReactNode }) => (
+    <h4 className="mb-1 mt-2 text-xs font-semibold text-white first:mt-0">
+      {renderAnimatedMarkdownChildren(children, "h4")}
+    </h4>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-300 underline hover:text-blue-200"
+    >
+      {renderAnimatedMarkdownChildren(children, "a")}
+    </a>
+  ),
+  hr: () => <hr className="my-3 border-white/10" />,
+} as Record<string, React.ComponentType<Record<string, unknown>>>;
+
 /* ── Sparkle icon (reused in several spots) ───────────────────── */
 
 function SparkleIcon({ className }: { className?: string }) {
@@ -222,6 +336,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const shouldAutoFollowRef = useRef(true);
 
   // Resizable width
   const [width, setWidth] = useState(getCachedWidth);
@@ -270,17 +385,18 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     const el = scrollContainerRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollDown(distanceFromBottom > 80);
+    const nearBottom = distanceFromBottom <= 120;
+    shouldAutoFollowRef.current = nearBottom;
+    setShowScrollDown(!nearBottom);
   }, []);
 
-  // Auto-scroll on new messages or streaming content (only if near bottom)
+  // Auto-follow while near bottom so streaming stays in view smoothly
   useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom < 120) {
-      endRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (!shouldAutoFollowRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [messages, loading, streamingContent]);
 
   const scrollToBottom = useCallback(() => {
@@ -431,6 +547,12 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
   const renderContent = useCallback((text: string) => (
     <ReactMarkdown components={markdownComponents}>{text}</ReactMarkdown>
   ), []);
+  const renderStreamingContent = useCallback(
+    (text: string) => (
+      <ReactMarkdown components={streamingMarkdownComponents}>{text}</ReactMarkdown>
+    ),
+    []
+  );
 
   if (typeof document === "undefined") return null;
 
@@ -559,7 +681,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                     <SparkleIcon className="h-3 w-3 text-blue-300" />
                   </span>
                   <div className="max-w-[85%] rounded-2xl bg-white/[0.06] px-4 py-3 text-sm leading-relaxed text-gray-200">
-                    {renderContent(streamingContent)}
+                    {renderStreamingContent(streamingContent)}
                   </div>
                 </div>
               )}
