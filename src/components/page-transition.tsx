@@ -10,7 +10,15 @@ export function PageTransition({
 }) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
-  const disableTransformTransition = pathname.startsWith("/scout/");
+  const isScoutRoute = pathname.startsWith("/scout/");
+
+  if (isScoutRoute) {
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: "var(--background)" }}>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -20,11 +28,9 @@ export function PageTransition({
       initial={
         prefersReducedMotion
           ? false
-          : disableTransformTransition
-          ? { opacity: 0 }
           : { opacity: 0, y: 8 }
       }
-      animate={disableTransformTransition ? { opacity: 1 } : { opacity: 1, y: 0 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
     >
       {children}

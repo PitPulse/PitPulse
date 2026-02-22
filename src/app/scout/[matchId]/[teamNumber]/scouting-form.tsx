@@ -15,7 +15,7 @@ import {
   type DraftFormData,
 } from "@/lib/offline-drafts";
 import type { Tables } from "@/types/supabase";
-import type { ScoutingFormConfig, FormOptionItem } from "@/lib/platform-settings";
+import type { ScoutingFormConfig } from "@/lib/platform-settings";
 
 interface ScoutingFormProps {
   matchId: string;
@@ -164,6 +164,8 @@ export function ScoutingForm({
   const [error, setError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [dockProgress, setDockProgress] = useState(false);
+  const [progressHeight, setProgressHeight] = useState(0);
   const [abilityAnswers, setAbilityAnswers] = useState<
     Record<string, boolean | null>
   >(() => {
@@ -184,6 +186,8 @@ export function ScoutingForm({
   const ratingsRef = useRef<HTMLDivElement | null>(null);
   const abilitiesRef = useRef<HTMLDivElement | null>(null);
   const notesRef = useRef<HTMLDivElement | null>(null);
+  const progressWrapRef = useRef<HTMLDivElement | null>(null);
+  const progressNavRef = useRef<HTMLElement | null>(null);
 
   // ── Draft auto-save / restore ──────────────────────────────────
   const draftKey = useMemo(
@@ -377,6 +381,33 @@ export function ScoutingForm({
     };
   }, [steps]);
 
+  useEffect(() => {
+    const updateHeight = () => {
+      setProgressHeight(progressNavRef.current?.offsetHeight ?? 0);
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
+
+  useEffect(() => {
+    const threshold = 8;
+    const updateDockState = () => {
+      const wrap = progressWrapRef.current;
+      if (!wrap) return;
+      const shouldDock = wrap.getBoundingClientRect().top <= threshold;
+      setDockProgress((prev) => (prev === shouldDock ? prev : shouldDock));
+    };
+
+    updateDockState();
+    window.addEventListener("scroll", updateDockState, { passive: true });
+    window.addEventListener("resize", updateDockState);
+    return () => {
+      window.removeEventListener("scroll", updateDockState);
+      window.removeEventListener("resize", updateDockState);
+    };
+  }, []);
+
   const entryData = {
     match_id: matchId,
     team_number: teamNumber,
@@ -565,60 +596,66 @@ export function ScoutingForm({
         </div>
       )}
 
-      <nav
-        aria-label="Scouting form progress"
-        className="scout-progress-sticky p-3"
+      <div
+        ref={progressWrapRef}
+        style={dockProgress && progressHeight > 0 ? { minHeight: `${progressHeight}px` } : undefined}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">
-            Progress
-          </p>
-          <p className="text-xs text-gray-400" aria-live="polite">
-            Step {activeStep + 1} of {steps.length}
-          </p>
-        </div>
-        <div
-          role="progressbar"
-          aria-valuenow={activeStep + 1}
-          aria-valuemin={1}
-          aria-valuemax={steps.length}
-          aria-label={`Scouting progress: step ${activeStep + 1} of ${steps.length}, ${steps[activeStep]?.label ?? ""}`}
-          className="mt-3 grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
-          }}
+        <nav
+          ref={progressNavRef}
+          aria-label="Scouting form progress"
+          className={`scout-progress-sticky p-3 ${dockProgress ? "scout-progress-fixed" : ""}`}
         >
-          {steps.map((step, index) => (
-            <button
-              key={step.label}
-              type="button"
-              aria-label={`Go to ${step.label} section${index <= activeStep ? " (completed)" : ""}`}
-              onClick={() =>
-                step.ref.current?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                })
-              }
-              className="min-w-0 min-h-[44px] text-center"
-            >
-              <span className="block h-1.5 overflow-hidden rounded-full bg-white/10">
-                <span
-                  className={`block h-full rounded-full bg-cyan-400 transition-all duration-500 ease-out ${
-                    index <= activeStep ? "w-full" : "w-0"
-                  }`}
-                />
-              </span>
-              <span
-                className={`mt-1 block truncate text-[11px] font-medium uppercase tracking-[0.1em] transition-colors duration-300 sm:text-xs ${
-                  index === activeStep ? "text-cyan-200" : "text-gray-400"
-                }`}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">
+              Progress
+            </p>
+            <p className="text-xs text-gray-400" aria-live="polite">
+              Step {activeStep + 1} of {steps.length}
+            </p>
+          </div>
+          <div
+            role="progressbar"
+            aria-valuenow={activeStep + 1}
+            aria-valuemin={1}
+            aria-valuemax={steps.length}
+            aria-label={`Scouting progress: step ${activeStep + 1} of ${steps.length}, ${steps[activeStep]?.label ?? ""}`}
+            className="mt-3 grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {steps.map((step, index) => (
+              <button
+                key={step.label}
+                type="button"
+                aria-label={`Go to ${step.label} section${index <= activeStep ? " (completed)" : ""}`}
+                onClick={() =>
+                  step.ref.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
+                }
+                className="min-w-0 min-h-[44px] text-center"
               >
-                {step.progressLabel}
-              </span>
-            </button>
-          ))}
-        </div>
-      </nav>
+                <span className="block h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <span
+                    className={`block h-full rounded-full bg-cyan-400 transition-all duration-500 ease-out ${
+                      index <= activeStep ? "w-full" : "w-0"
+                    }`}
+                  />
+                </span>
+                <span
+                  className={`mt-1 block truncate text-[11px] font-medium uppercase tracking-[0.1em] transition-colors duration-300 sm:text-xs ${
+                    index === activeStep ? "text-cyan-200" : "text-gray-400"
+                  }`}
+                >
+                  {step.progressLabel}
+                </span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      </div>
 
       {/* Auto Section */}
       <section
