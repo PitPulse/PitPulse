@@ -6,7 +6,7 @@ import type { LooseSupabaseDatabase } from "@/types/supabase-loose";
 
 const ACTIVE_JOB_PHASES = ["queued", "retrying", "syncing_event", "syncing_stats"] as const;
 const MAX_ATTEMPTS = 3;
-const STALE_LOCK_MS = 8 * 60 * 1000;
+const STALE_LOCK_MS = 2 * 60 * 1000;
 
 export type EventSyncJobPhase =
   | "queued"

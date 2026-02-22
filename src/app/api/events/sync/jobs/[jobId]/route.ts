@@ -41,7 +41,12 @@ export async function GET(
       return NextResponse.json({ error: "Sync job not found" }, { status: 404 });
     }
 
-    if (job.phase === "queued" || job.phase === "retrying") {
+    if (
+      job.phase === "queued" ||
+      job.phase === "retrying" ||
+      job.phase === "syncing_event" ||
+      job.phase === "syncing_stats"
+    ) {
       kickSyncWorker({ maxJobs: 1, workerId: `poll-${profile.org_id}` });
     }
 

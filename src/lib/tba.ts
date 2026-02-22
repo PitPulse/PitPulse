@@ -1,4 +1,5 @@
 const TBA_BASE_URL = "https://www.thebluealliance.com/api/v3";
+const TBA_TIMEOUT_MS = 15000;
 
 async function tbaFetch<T>(path: string): Promise<T> {
   const apiKey = process.env.TBA_API_KEY;
@@ -6,12 +7,25 @@ async function tbaFetch<T>(path: string): Promise<T> {
     throw new Error("TBA_API_KEY environment variable is not set");
   }
 
-  const res = await fetch(`${TBA_BASE_URL}${path}`, {
-    headers: {
-      "X-TBA-Auth-Key": apiKey,
-    },
-    next: { revalidate: 300 }, // Cache for 5 minutes
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TBA_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${TBA_BASE_URL}${path}`, {
+      headers: {
+        "X-TBA-Auth-Key": apiKey,
+      },
+      next: { revalidate: 300 }, // Cache for 5 minutes
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`TBA API timeout after ${TBA_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     throw new Error(`TBA API error: ${res.status} ${res.statusText}`);

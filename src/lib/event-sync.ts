@@ -11,6 +11,7 @@ import {
 export const EVENT_KEY_PATTERN = /^\d{4}[a-z0-9]+$/;
 const STATBOTICS_BASE = "https://api.statbotics.io/v3";
 const STATBOTICS_CONCURRENCY = 6;
+const STATBOTICS_TIMEOUT_MS = 12000;
 
 interface StatboticsTeamEvent {
   epa: {
@@ -266,10 +267,17 @@ export async function syncEventStats(params: {
     const results = await Promise.all(
       batch.map(async (teamNum) => {
         try {
-          const res = await fetch(
-            `${STATBOTICS_BASE}/team_event/${teamNum}/${eventKey}`,
-            { cache: "no-store" }
-          );
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), STATBOTICS_TIMEOUT_MS);
+          let res: Response;
+          try {
+            res = await fetch(
+              `${STATBOTICS_BASE}/team_event/${teamNum}/${eventKey}`,
+              { cache: "no-store", signal: controller.signal }
+            );
+          } finally {
+            clearTimeout(timeout);
+          }
 
           if (!res.ok) {
             if (res.status !== 404) {
@@ -301,6 +309,11 @@ export async function syncEventStats(params: {
             },
           };
         } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            console.warn(
+              `Statbotics timeout for team ${teamNum} at event ${eventKey} after ${STATBOTICS_TIMEOUT_MS}ms`
+            );
+          }
           console.warn(
             `Statbotics fetch error for team ${teamNum} at event ${eventKey}:`,
             error instanceof Error ? error.message : "Unknown error"
