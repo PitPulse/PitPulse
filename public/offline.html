@@ -24,17 +24,22 @@
     .shell {
       width: min(100%, 480px);
     }
+    .hero-copy {
+      margin: 0 auto 2rem;
+      max-width: 36ch;
+      text-align: center;
+    }
     h1 {
       font-size: 2rem;
       font-weight: 700;
       margin-bottom: 0.65rem;
       letter-spacing: -0.02em;
+      text-wrap: balance;
     }
     .subtitle {
       color: #94a3b8;
       font-size: 1rem;
-      margin: 0 auto 2rem;
-      max-width: 34ch;
+      margin: 0 auto;
       line-height: 1.5;
       text-wrap: balance;
     }
@@ -148,11 +153,13 @@
 </head>
 <body>
   <div class="shell">
-    <h1>You're Offline</h1>
-    <p class="subtitle">
-      No internet connection detected. You can keep scouting on this device and
-      your entries will sync automatically once you're back online.
-    </p>
+    <div class="hero-copy">
+      <h1>You're Offline</h1>
+      <p class="subtitle">
+        No internet connection detected. You can keep scouting on this device and
+        your entries will sync automatically once you're back online.
+      </p>
+    </div>
 
     <div class="info-card">
       <h2>What works offline</h2>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "pitpilot-v4";
+const CACHE_NAME = "pitpilot-v5";
 const STATIC_ASSETS = [
   "/",
   "/login",
