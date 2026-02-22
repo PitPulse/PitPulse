@@ -11,6 +11,10 @@ import {
   readRateLimitSnapshot,
   resolveRateLimitMessage,
 } from "@/lib/rate-limit-ui";
+import {
+  isEpaOnlyScoutingInsight,
+  stripEpaOnlyScoutingPrefix,
+} from "@/lib/brief-scouting-insights";
 
 interface MatchBriefOverlayButtonProps {
   matchId: string;
@@ -128,6 +132,13 @@ export function MatchBriefOverlayButton({
         teamsNeedingCoverage: [],
         scoutActions: [],
       },
+    [brief]
+  );
+  const noScoutingTeams = useMemo(
+    () =>
+      brief?.teamAnalysis
+        .filter((team) => isEpaOnlyScoutingInsight(team.scoutingInsights))
+        .map((team) => team.teamNumber) ?? [],
     [brief]
   );
 
@@ -316,6 +327,13 @@ export function MatchBriefOverlayButton({
                   {...(freshlyGenerated ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, delay: 0.25 } } : {})}
                 >
                   <h4 className="mb-3 text-base font-semibold text-white">Team Analysis</h4>
+                  {noScoutingTeams.length > 0 && (
+                    <div className="mb-3 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                      {noScoutingTeams.length === 1
+                        ? `No scouting data available for Team ${noScoutingTeams[0]}; Analysis is based on EPA only for them.`
+                        : `No scouting data available for Teams ${noScoutingTeams.join(", ")}; Analysis is based on EPA only for them.`}
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {brief.teamAnalysis.map((team) => (
                       <div
@@ -339,7 +357,10 @@ export function MatchBriefOverlayButton({
                             EPA: {team.epaBreakdown.total.toFixed(1)}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-200">{team.scoutingInsights}</p>
+                        <p className="text-sm text-gray-200">
+                          {stripEpaOnlyScoutingPrefix(team.scoutingInsights) ||
+                            "EPA-only analysis currently available for this team."}
+                        </p>
                       </div>
                     ))}
                   </div>
