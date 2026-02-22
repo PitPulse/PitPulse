@@ -17,6 +17,8 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+const CHAT_HISTORY_MESSAGE_LIMIT = 6;
+const CHAT_MAX_COMPLETION_TOKENS = 700;
 
 function estimateTokensFromText(value: string): number {
   return Math.max(1, Math.ceil(value.length / 4));
@@ -113,10 +115,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
   }
 
-  // Validate and cap conversation history to last 6 exchanges (12 messages)
+  // Validate and cap conversation history to the last few messages.
   const conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
   if (Array.isArray(history)) {
-    const trimmed = history.slice(-12);
+    const trimmed = history.slice(-CHAT_HISTORY_MESSAGE_LIMIT);
     for (const msg of trimmed) {
       if (
         msg &&
@@ -286,7 +288,7 @@ Rules:
         const body: Record<string, unknown> = {
           model,
           messages: openaiMessages,
-          max_completion_tokens: 1200,
+          max_completion_tokens: CHAT_MAX_COMPLETION_TOKENS,
           reasoning_effort: "low",
           stream: true,
         };

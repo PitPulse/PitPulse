@@ -59,8 +59,8 @@ export function StrategyChat({
     setLoading(true);
     setError(null);
 
-    // Send conversation history (skip the initial greeting, cap at last 12 messages)
-    const history = updatedMessages.slice(1, -1).slice(-12);
+    // Send conversation history (skip the initial greeting, cap at last 6 messages)
+    const history = updatedMessages.slice(1, -1).slice(-6);
 
     try {
       const res = await fetch("/api/strategy/chat", {

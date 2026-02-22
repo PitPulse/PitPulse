@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatCompletionWithUsage } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { BriefContentSchema, type BriefContent } from "@/types/strategy";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import {
@@ -1021,8 +1022,9 @@ IMPORTANT:
       console.warn("Invalid AI brief schema; normalized fallback applied:", initialParsed.error.flatten());
     }
 
-    // Upsert the brief
-    const { data: brief, error: briefError } = await supabase
+    // Use validated server-side org context + admin client to avoid brittle RLS upsert conflicts.
+    const admin = createAdminClient();
+    const { data: brief, error: briefError } = await admin
       .from("strategy_briefs")
       .upsert(
         {

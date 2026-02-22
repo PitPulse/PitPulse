@@ -182,6 +182,43 @@ function ThinkingIndicator() {
   );
 }
 
+/* ── Streaming text (smooth word fade) ───────────────────────── */
+
+function tokenizeStreamingText(text: string) {
+  const tokens = text.match(/\S+|\s+/g) ?? [];
+  return tokens.map((value, index) => ({
+    key: `${index}-${value.length}`,
+    value,
+    isWhitespace: /^\s+$/.test(value),
+  }));
+}
+
+function StreamingText({ text }: { text: string }) {
+  const tokens = useMemo(() => tokenizeStreamingText(text), [text]);
+
+  return (
+    <p className="whitespace-pre-wrap break-words">
+      {tokens.map((token) => {
+        if (token.isWhitespace) {
+          return <span key={token.key}>{token.value}</span>;
+        }
+
+        return (
+          <motion.span
+            key={token.key}
+            className="inline-block will-change-[opacity,transform]"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {token.value}
+          </motion.span>
+        );
+      })}
+    </p>
+  );
+}
+
 /* ── Main sidebar ─────────────────────────────────────────────── */
 
 interface ChatSidebarProps {
@@ -210,8 +247,6 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
   });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  // True once tokens start arriving (false while "thinking")
-  const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(() => {
@@ -328,11 +363,10 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
-    setStreaming(false);
     setStreamingContent("");
     setError(null);
 
-    const history = updatedMessages.slice(1, -1).slice(-12);
+    const history = updatedMessages.slice(1, -1).slice(-6);
 
     try {
       const res = await fetch("/api/strategy/chat", {
@@ -351,7 +385,6 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
         const decoder = new TextDecoder();
         let buffer = "";
         let fullText = "";
-        let startedStreaming = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -370,10 +403,6 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
             try {
               const parsed = JSON.parse(payload);
               if (parsed.token) {
-                if (!startedStreaming) {
-                  startedStreaming = true;
-                  setStreaming(true);
-                }
                 fullText += parsed.token;
                 setStreamingContent(fullText);
               }
@@ -425,7 +454,6 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
-      setStreaming(false);
       setStreamingContent("");
     }
   }
@@ -568,14 +596,7 @@ export function ChatSidebar({ open, onClose, eventKey, eventName, userName }: Ch
                     <SparkleIcon className="h-3 w-3 text-blue-300" />
                   </span>
                   <div className="max-w-[85%] rounded-2xl bg-white/[0.06] px-4 py-3 text-sm leading-relaxed text-gray-200">
-                    <motion.div
-                      key={streamingContent.length}
-                      initial={{ opacity: 0.35 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.16, ease: "easeOut" }}
-                    >
-                      {renderContent(streamingContent)}
-                    </motion.div>
+                    <StreamingText text={streamingContent} />
                   </div>
                 </div>
               )}

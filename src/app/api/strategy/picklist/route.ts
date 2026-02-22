@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatCompletionWithUsage } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { PickListContentSchema, type PickListContent } from "@/types/strategy";
 import { summarizeScouting } from "@/lib/scouting-summary";
 import {
@@ -528,8 +529,9 @@ IMPORTANT:
     }
     const pickListContent = normalizePickListRoles(parsed.data);
 
-    // Upsert the pick list
-    const { data: pickList, error: pickListError } = await supabase
+    // Use validated server-side org context + admin client to avoid brittle RLS upsert conflicts.
+    const admin = createAdminClient();
+    const { data: pickList, error: pickListError } = await admin
       .from("pick_lists")
       .upsert(
         {
