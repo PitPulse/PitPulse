@@ -265,10 +265,6 @@ export default function JoinPageClient({
                   </p>
                 )}
               </div>
-              <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-gray-300">
-                New teams start on the Free plan. Captains can upgrade to Supporter anytime from
-                Team Settings.
-              </div>
               <button
                 type="submit"
                 disabled={loading || teamLookup.taken}
