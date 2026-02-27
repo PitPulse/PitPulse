@@ -48,3 +48,6 @@ __pycache__/
 !scripts/models/*.joblib
 venv/
 scripts/data/
+.claude/launch.json
+.claude/run-dev.sh
+.claude/start.sh
